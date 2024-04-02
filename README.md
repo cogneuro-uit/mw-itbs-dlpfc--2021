@@ -9,7 +9,7 @@ If you want to use this data/analysis in a research publication, please cite [ou
 ~~~{bibtex}
 @article{mw-rtms2024,
   author={Steffen Rygg Aasen and Ragnhild Nicolaisen Drevland and Gábor Csifcsák and Matthias Mittner},
-  title={IncreasingMind Wandering With AcceleratedIntermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex},
+  title={Increasing Mind Wandering With Accelerated Intermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex},
   year=2024,
   journal={},
   volume=,
@@ -29,7 +29,7 @@ This repository uses the
 
 ## Data
 
-Raw behavioural data is located in `data/raw` and is provided in `.csv` format. Demographics data are provided under the `demographics` folder. The `export` folder contains blinding related output, generated from the `make_randomization_list.R`), and Bayesian model outputs used for the manuscript (`paper_vars.RData`). 
+Raw behavioural data is located in `data/raw` and is provided in `.csv` format. Demographics data are provided under the `demographics` folder. The `export` folder contains blinding related output, generated from the `make_randomization_list.R`, and Bayesian model outputs used for the manuscript (`paper_vars.RData`). 
 
 ### Preprocessing 
 
