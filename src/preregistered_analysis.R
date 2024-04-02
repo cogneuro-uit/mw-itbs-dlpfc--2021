@@ -166,24 +166,6 @@ pfc_t |>
 ggsave("figs/prereg/descriptive_MW-BV-AE+block+stim-v4.svg", dpi=300, width=6.5, heigh=3.5)
 
 
-pfc_t |>
-  mutate(variable=fct_recode(variable, `c) Approximate Entropy`="AE",
-                             `b) Behavioural Variability`="BV", `a) Mind Wandering`="MW"),
-         Stimulation = fct_recode( factor(stimulation, levels=c("real","sham")),
-                                   Real ="real", Sham = "sham")) -> 
-  pfc_plot_dat
-  
-pfc_plot_dat |>
-  filter(variable == "Mind Wandering") |>
-  ggplot(aes(x = block, y = value, group = Stimulation, color = Stimulation))+
-  # facet_wrap(~variable)+
-  stat_summary(fun.data=mean_se, geom = "line", position = position_dodge(.1)) +
-  stat_summary(geom = "pointrange", position = position_dodge(.1)) +
-  geom_hline(yintercept=0, linetype="dashed")+
-  labs(title="a)         Mind Wandering")
-
-
-
 ## p2 = MB & SMW    =====
 pfc |> 
   na.omit() |> 
@@ -220,8 +202,9 @@ data.probe.cond.diff4 |>
   geom_hline(yintercept = 0, linetype="dashed")+
   #scale_color_manual(values=c("sham"="cornflowerblue",real="red"))+
   labs(y = "Difference to baseline", x="Block", col="Stimulation")+
-  facet_grid(~ variable) 
-  theme(legend.position ="top", legend.direction = "horizontal")
+  facet_grid(~ variable) +
+  theme_bw()
+  # theme(legend.position ="top", legend.direction = "horizontal")+
 ggsave(filename ="figs/prereg/descriptive_MB-SMW+block+stim-v2.svg", dpi = 300, width=6, height=3.5)
 
 ### p1+p2 = Combined plot         ====

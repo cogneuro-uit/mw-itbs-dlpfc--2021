@@ -7,10 +7,10 @@ map_df(fnames, \(fname){
   d$session=session
   
   return(d)
-}) -> raw_pfc_data
+}) -> raw_data
 
 ## Sanity check:                                                          #####
-raw_pfc_data |>
+raw_data |>
   group_by(subj,session,block) |> 
   summarize(nbeep=sum(stimulus=="stimulus"),
             ntap=sum(response %in% c("lctrl", "rctrl")),

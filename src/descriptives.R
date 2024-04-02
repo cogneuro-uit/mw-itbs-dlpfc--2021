@@ -6,7 +6,6 @@ library(gt)
 
 save_tables <- FALSE
 
-
 # Demographics        ======
 ## Age ===== 
 demo_pfc |> summarize(
