@@ -56,7 +56,8 @@ Relevant variables are coded as follows:
 
 ## Analyses
 
-The analysis are located in the `src/` folder as `preregistered_analysis.R`, `exploratory_analysis`, and descriptives (`descriptives.R`. 
+The analyses are located in the `src/` folder as `preregistered_analysis.R`, `exploratory_analysis`, and `descriptives.R`. 
+
 In addition, a script related to fixes of errors in the data files can be found in `fix_data_file_issues.R`, and a power analysis for the study can be found in the `power.R` script. 
 
-In the `report/` folder there is a Quarto document used to creating the results section for the main article.
+Under the `report/` folder there is a Quarto document used to generating the broad strokes for the results section.
