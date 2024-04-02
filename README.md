@@ -1,6 +1,4 @@
 # 2024-mw-itbs
- 
-# 2020_cfc_tacs
 Data, analysis and experimental materials for our paper "IncreasingMind Wandering With AcceleratedIntermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex".
 
 If you want to use this data/analysis in a research publication, please cite [our paper](https://doi.org/10.31234/osf.io/fkx3w).
