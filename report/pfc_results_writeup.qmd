@@ -1,0 +1,288 @@
+---
+title: "PFC results writeup"
+format: docx
+---
+
+```{r, echo=F, warning=F, message=F}
+library(tidyverse)
+library(gt)
+
+
+source("../lib/mcmc.R")
+load("../data/export/paper_vars.RData")
+
+
+# samples as matrix
+sae <- as.matrix(mod.pfc.ae)
+sbv <- as.matrix(mod.pfc.bv)
+smw <- as.matrix(mod.pfc.mw)
+smb <- as.matrix(mod.pfc.mb)
+ssmw <- as.matrix(mod.pfc.smw)
+
+loL <- list()
+loL[["MW"]] <- brms::loo(mod.pfc.mw)$estimates["looic",]
+loL[["MB"]] <- brms::loo(mod.pfc.mb)$estimates["looic",]
+loL[["SMW"]] <- brms::loo(mod.pfc.smw)$estimates["looic",]
+loL[["BV"]] <- brms::loo(mod.pfc.bv)$estimates["looic",]
+loL[["AE"]] <- brms::loo(mod.pfc.ae)$estimates["looic",]
+  
+coef_hdi <- function(x, dir="+"){
+  m <- mean(x)
+  ll <- hdi(x)[1]
+  ul <- hdi(x)[2]
+  #ll <- quantile(x, 0.025)
+  #ul <- quantile(x, 0.975)
+  erat <- sum(x>=0)/sum(x<0)
+  pval <- sum(x>=0)/length(x)
+  if(dir!="+"){
+    erat=1./erat
+    pval=1-pval
+  }
+  pval=sprintf("%.2f",pval)
+  if(is.infinite(erat)){
+    erat=ifelse(erat<0, "-\\infty", "\\infty")
+  } else {
+    erat=sprintf("%.2f",erat)
+  }
+  sprintf("$b=%.2f, [%.2f, %.2f], p^{%s}=%s, \\text{ER}^{%s}=%s$", m, ll, ul, dir, pval, dir, erat)
+}
+
+# coef_hdi <- function(x, dir="+"){
+#   ## logistic regression models
+#   m <- mean(x)
+#   ll <- hdi(x)[1]
+#   ul <- hdi(x)[2]
+#   #ll <- quantile(x, 0.025)
+#   #ul <- quantile(x, 0.975)
+#   erat <- sum(x>=0)/sum(x<0)
+#   pval <- sum(x>=0)/length(x)
+#   if(dir!="+"){
+#     erat=1./erat
+#     pval=1-pval
+#   }
+#   pval=sprintf("%.2f",pval)
+#   if(is.infinite(erat)){
+#     erat=ifelse(erat<0, "-\\infty", "\\infty")
+#   } else {
+#     erat=sprintf("%.2f",erat)
+#   }
+#   or = sprintf("%.2f", mean(exp(x)))
+#   llor = hdi(exp(x))[1]
+#   ulor = hdi(exp(x))[2]
+#   sprintf("$b=%.2f, [%.2f, %.2f], p^{%s}=%s,%s\n \\text{ER}^{%s}=%s,  \\text{OR}=%s, [%.2f, %.2f]$", 
+#           m,         ll, ul,        dir, pval,               dir, erat,            or, llor, ulor)
+# }
+```
+
+
+```{r include=F}
+# most of this is describe in the "statistical analysis" and is therefore left out of the text below.
+"
+We used Bayesian hierarchical models to estimate the effects of the predictors trial number (z-transformed), block (B0, B1, B2, B3) and stimulation (sham vs. real) on self-reported MW and the behavioural indices AE and BV.
+
+
+We also investigated the proportion of MW responses that were categorized by our participants as mind-blanking (MB) and spontaneous MW. For this analysis, we only utilized MB and spontaneous MW responses that followed a MW report (i.e., a 1 or 2 response). We then used two separate Bayesian ordered-probit models for the MB and spontaneous MW responses over the blocks and stimulation conditions (see Table 2).
+"
+```
+
+
+We used Hamiltonian Monte-Carlo algorithms implemented in the Stan software [@stan] to sample from 6 parallel chains with 3000 samples each, discarding the first 1500 samples of each chain. Convergence of all models was confirmed visually and all $\hat{R}$-values were confirmed to be lower than 1.05. We used the default priors implemented in the brms-package [@brms] which are non-informative for coefficients corresponding to fixed effects and weakly informative for the intercept and standard-deviation parameters  (Student-t prior with 3 df, mean 0 and SD 2.5). For each coefficient, we report its posterior mean $b$ and 95% highest-density interval (HDI). In addition, for directed effects, we report the probability of the effect to be positive ($p^{+}$) or negative ($p^{-}$) as well as the evidence ratio for a positive ($\text{ER}^{+}$) or negative effect ($\text{ER}^{-}$). The ER quantifies how much more likely the effect is to be in the expected compared to the opposite direction.
+
+
+### Self-reported MW
+
+
+Results of the Bayesian ordered probit model for MW indicate that MW increased within blocks as a function of trial, `r coef_hdi(smw[,"b_scaleproberound"])`. Moreover, MW increased from baseline to the second block (B0 to B2: `r coef_hdi(smw[,"b_blockB2"])`). However,  there was only anecdotal evidence that MW increased in the first block blocks (B0 to B1: `r coef_hdi(smw[,"b_blockB1"])`) and in the third block (B0 to B3: `r coef_hdi(smw[,"b_blockB3"])`). Compared to sham stimulation, there is moderate evidence that MW increased during the first real stimulation (stimulation $\times$ B1: `r coef_hdi(smw[,"b_stimulationreal:blockB1"])`), but strong evidence that it increased during the second stimulation (stimulation $\times$ B2: `r coef_hdi(smw[,"b_stimulationreal:blockB2"])`), and strong evidence that it increased during the third stimulation (stimulation $\times$ B3: `r coef_hdi(smw[,"b_stimulationreal:blockB3"])`). 
+
+
+
+For MB, there was very strong evidence that MB increased within each block, `r coef_hdi(smb[,"b_scaleproberound"])`. However, between blocks, there was evidence for a reduction in MB responses to the first block (B0 to B1: `r coef_hdi(smb[,"b_blockB1"], dir="-")`), which was moderate for the second block (B0 to B2: `r coef_hdi(smb[,"b_blockB2"], dir="-")`), but anecdotal for the last block (B0 to B3: `r coef_hdi(smb[,"b_blockB3"], dir="-")`). For the real stimulation, there was anecdotal evidence for a decrease in MB response after the first stimulation (`r coef_hdi(smb[,"b_stimulationreal:blockB1"], dir="-")`), anecdotal evidence for an increase after the second stimulation (`r coef_hdi(smb[,"b_stimulationreal:blockB2"])`), and moderate evidence for a decrease in MB responses after the third stimulation (`r coef_hdi(smb[,"b_stimulationreal:blockB3"], dir="-")`).
+
+Regarding spontaneous MW (SMW), there was only anecdotal evidence for a increase in SMW within the blocks, `r coef_hdi(ssmw[,"b_scaleproberound"])`. There was moderate evidence that SMW increased from the baseline to B1 (`r coef_hdi(ssmw[,"b_blockB1"])`) and B2 (`r coef_hdi(ssmw[,"b_blockB2"])`), while there was very strong evidence that SMW increased to the third block (`r coef_hdi(ssmw[,"b_blockB3"])`). As for the real stimulation over blocks compared to baseline, SMW indicated anecdotal evidence for a decrease in the first block (stimulation $\times$ B1: `r coef_hdi(ssmw[,"b_stimulationreal:blockB1"], dir="-")`), and anecdotal evidence for an increase in the second block (stimulation $\times$ B2: `r coef_hdi(ssmw[,"b_stimulationreal:blockB2"])`), and moderate evidence for a decrease to the third block (stimulation $\times$  B3 `r coef_hdi(ssmw[,"b_stimulationreal:blockB3"], dir="-")`).
+
+
+### Behavioural indices
+
+In terms of the performance indices (see Table 3), BV increased during over time (`r coef_hdi(sbv[,"b_scaleproberound"])`). However, BV did not increase in the first block (B0 to B1: `r coef_hdi(sbv[,"b_blockB1"])`), but we found strong evidence that BV increased in the second block (B0 to B2, `r coef_hdi(sbv[,"b_blockB2"])`), however, BV returned back to baseline levels in B3, `r coef_hdi(sbv[,"b_blockB3"], dir="-")`. A stimulation-induced decrease in BV was not found in B1 (stimulation $\times$ B1: `r coef_hdi(sbv[,"b_stimulationreal:blockB1"], dir="-")`), however we find strong evidence for a decrease in BV in B2 (stimulation $\times$ B2: `r coef_hdi(sbv[,"b_stimulationreal:blockB2"], dir="-")`) and moderate evidence for a decrease in BV during B3, (stimulation $\times$ B3) `r coef_hdi(sbv[,"b_stimulationreal:blockB3"], dir="-")`.
+
+With respect to the approximate entropy, AE did not show a clear relationship with trial, `r coef_hdi(sae[,"b_scaleproberound"])`. However, we find extreme evidence that AE was reduced in the following blocks as compared to baseline (B1: `r coef_hdi(sae[,"b_blockB1"], dir="-")`, B2: `r coef_hdi(sae[,"b_blockB2"], dir="-")`, B3: `r coef_hdi(sae[,"b_blockB3"], dir="-")`). In relation to stimulation, we found moderate evidence that real stimulation increased AE on the first block (stimulation $\times$ B1: `r coef_hdi(sae[,"b_stimulationreal:blockB1"])`. This effect, however, was only anecdotal for the subsequent blocks (stimulation $\times$ B2: `r coef_hdi(sae[,"b_stimulationreal:blockB2"])`, stimulation $\times$ B3: `r coef_hdi(sae[,"b_stimulationreal:blockB3"])`.
+
+## Tables
+
+### MW, MB & S-MW
+
+```{r echo=F}  
+# Split HDI ======  
+get_summary <- function(mod){
+  X <- as_tibble(mod) |> select(starts_with("b_"), sd_subj__Intercept) |>
+    gather(variable,val) |>
+    group_by(variable) |>
+    summarize(mean=mean(val), q5=quantile(val, probs = 0.05), q95=quantile(val, probs = 0.95),
+              pd=ifelse(mean(val<=0)<0.5, mean(val>=0), mean(val<=0))) |>
+    mutate(variable=fct_recode(variable, 
+      Threshold1="b_Intercept[1]", Threshold2="b_Intercept[2]", 
+      Threshold3="b_Intercept[3]", B1="b_blockB1", B2="b_blockB2", B3="b_blockB3",
+      `Stimulation (B0)`="b_stimulationreal", Trial="b_scaleproberound",  
+      `B1 x stimulation`="b_stimulationreal:blockB1", `B2 x stimulation`="b_stimulationreal:blockB2",
+      `B3 x stimulation`="b_stimulationreal:blockB3", `Sigma (subjects)`="sd_subj__Intercept"),
+           variable=ordered(variable, levels=
+                c("Threshold1", "Threshold2", "Threshold3",
+                  "Trial","Stimulation (B0)", "B1","B2","B3", 
+                  "B1 x stimulation", "B2 x stimulation", "B3 x stimulation", 
+                  "Sigma (subjects)"))) |> # σ
+    arrange(variable) |>
+    mutate(group=case_when(variable %in% c("Sigma (subjects)") ~ "Model fit",
+                           T ~ "Coefficients")) |>
+    mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
+           HDI = sprintf("[%.2f, %.2f]", q5, q95),
+           pd = sprintf("%.2f", pd)) |>
+    select(-mean,-q5, -q95)# |> 
+   # select(everything(), pd)
+
+  r2 <- brms::bayes_R2(mod)
+  lo <- brms::loo(mod)$estimates["looic",]
+  
+  X <- X |> add_row(variable="R2", pd="", #²
+                    b = sprintf("%.2f", r2[1]),
+                    HDI = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
+                    group="Model fit") |>
+    add_row(variable="LOOIC", pd="", 
+                    b = sprintf("%.2f", lo[1]),
+                    HDI = sprintf("(SE=%.2f)", lo[2]),
+                    group = "Model fit") 
+  X
+}
+bind_cols(
+  get_summary(mod.pfc.mw),
+  get_summary(mod.pfc.mb)[,c("b","HDI", "pd")] |> rename(MBb = b, MBhdi = HDI, MBpd = pd), 
+  get_summary(mod.pfc.smw)[,c("b","HDI", "pd")] |> rename(SMWb = b, SMWhdi = HDI, SMWpd = pd)) -> M
+```
+
+```{r, echo=F, eval=T}
+M |>
+  gt(rowname_col = "variable", groupname_col = "group") |>
+  tab_spanner(
+    label = md("MW"),
+    columns = c("b", "HDI", "pd"),
+    id="mw") |>
+  tab_spanner(
+    label = md("MB"),
+    columns = c("MBb", "MBhdi", "MBpd"),
+    id="mb") |>
+  tab_spanner(
+    label = md("spontaneous MW"),
+    columns = c("SMWb", "SMWhdi", "SMWpd"),
+    id="smw") |>
+  cols_label(
+    .list = list(
+      "b" = "b",
+      "HDI" = "HDI",
+      "pd" = md("pᵈ"), 
+      "MBb" = "b", 
+      "MBhdi" = "HDI",
+      "MBpd" = md("pᵈ"),
+      "SMWb" = "b",
+      "SMWhdi" =  "HDI",
+      "SMWpd" = md("pᵈ") ) ) |>
+  cols_align(
+      align = "center",
+      columns = one_of(c("b","HDI","pd", "MBb", "MBhdi", "MBpd", "SMWb","SMWhdi","SMWpd"))
+    ) |>
+  fmt_markdown(columns=one_of("variable")) |>
+  tab_caption(md("Summary of ordered-probit models for MW, MB, and S-MW.")) |>
+   tab_footnote(
+    footnote = md("*: pᵈ >0.95 "),
+    locations = cells_row_groups(groups= c("Coefficients")),
+    placement = "right"
+  )
+```
+
+
+### AE and BV
+
+```{r, echo=F}
+get_summary_behav <- function(mod){
+  X <- as_tibble(mod) |> select(starts_with("b_"), sigma,sd_subj__Intercept) |>
+    gather(variable,val) |>
+    group_by(variable) |>
+    summarize(mean=mean(val), q5=quantile(val, probs = 0.05), q95=quantile(val, probs = 0.95),
+              pd=ifelse(mean(val<=0)<0.5, mean(val>=0), mean(val<=0))) |>
+    mutate(variable=fct_recode(variable, Intercept="b_Intercept",
+                               B1="b_blockB1", B2="b_blockB2", B3="b_blockB3",
+                               `Stimulation (B0)`="b_stimulationreal",
+                               Trial = "b_scaleproberound", 
+                               `B1 x stimulation`="b_stimulationreal:blockB1",
+                               `B2 x stimulation`="b_stimulationreal:blockB2",
+                               `B3 x stimulation`="b_stimulationreal:blockB3",
+                               `Sigma (subjects)`="sd_subj__Intercept",
+                               `Sigma`="sigma"),
+           variable=ordered(variable, levels=c("Intercept", "Trial","Stimulation (B0)", 
+                                               "B1","B2","B3", "B1 x stimulation",
+                                               "B2 x stimulation", "B3 x stimulation", 
+                                               "Sigma (subjects)", "Sigma"))) |> #σ
+    arrange(variable) |>
+    mutate(group=case_when(variable %in% c("Sigmna (subjects)","Sigma") ~ "Model fit",
+                           T ~ "Coefficients")) |>
+    mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
+           HDI = sprintf("[%.2f, %.2f]", q5, q95),
+           pd = sprintf("%.2f", pd)) |>
+    select(-mean,-q5, -q95) 
+
+  r2 <- brms::bayes_R2(mod)
+  lo <- brms::loo(mod)$estimates["looic",]
+  X <- X |> add_row(variable="R2", pd="", #²
+                    b=sprintf("%.2f", r2[1]),
+                    HDI=sprintf("[%.2f, %.2f]", r2[3], r2[4]),
+                    group="Model fit") |>
+    add_row(variable="LOOIC", pd="", 
+                    b = sprintf("%.2f", lo[1]),
+                    HDI = sprintf("(SE=%.2f)", lo[2]),
+                    group="Model fit") 
+  X
+}
+
+bind_cols(
+  get_summary_behav(mod.pfc.bv) |> rename(BV=b, BVhdi = HDI, BVpd = pd), 
+  get_summary_behav(mod.pfc.ae)[,c("b","HDI", "pd")] |> rename(AE = b, AEhdi = HDI, AEpd=pd)) -> M2
+```
+
+
+```{r, echo=F, eval=T}
+M2 |>
+  gt(rowname_col = "variable", groupname_col = "group") |>
+  tab_spanner(
+    label = md("AE"),
+    columns = c("AE", "AEhdi", "AEpd"),
+    id="ae"
+  ) |>
+    tab_spanner(
+    label = md("BV"),
+    columns = c("BV", "BVhdi","BVpd"),
+    id="bv"
+  ) |>
+  cols_label(
+    .list = list(
+      "AE" = "b", 
+      "AEhdi" = "HDI",
+      "AEpd"=md("pᵈ"),
+      "BV" = "b", 
+      "BVhdi" = "HDI",
+      "BVpd"=md("pᵈ")
+  )) |>
+  cols_align(
+      align = "center",
+      columns = one_of(c("AE","AEhdi", "AEpd","BV","BVhdi","BVpd"))
+    ) |>
+  fmt_markdown(columns=one_of("variable")) |>
+  tab_caption(md("Summary of regression models for AE and BV.")) |>
+   tab_footnote(
+    footnote = md("*: pᵈ >0.95 "),
+    locations = cells_row_groups(groups= c("Coefficients")),
+    placement = "right"
+  )
+
+```
+
+
+# References
+

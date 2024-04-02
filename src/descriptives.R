@@ -1,0 +1,605 @@
+library(ProjectTemplate)
+# migrate.project()
+load.project()
+library(patchwork)
+library(gt)
+
+save_tables <- FALSE
+
+
+# Demographics        ======
+## Age ===== 
+demo_pfc |> summarize(
+  mean = mean(Age), sd=sd(Age), min=min(Age), max=max(Age))
+
+demo_pfc |>
+  ggplot(aes(x=Age))+
+  geom_density()
+  geom_histogram()
+
+## Gender         ======
+demo_pfc |> summarize(
+  male = sum(Gender==1),
+  female = sum(Gender==0))
+
+## Music          ======
+demo_pfc |> summarise(
+  min = min(Music_years),
+  max = max(Music_years),
+  mean = mean(Music_years), 
+  sd = sd(Music_years), 
+  sum_music_exp = sum( Music_years > 0 ), 
+  sum_no_music_exp = sum( Music_years == 0 ) )
+
+demo_pfc |>
+  ggplot(aes(Music_years))+
+  geom_bar()
+
+## Meditation       ======
+demo_pfc |> summarise(
+  min = min(Meditation), 
+  max = max(Meditation), 
+  mean = mean(Meditation), 
+  sd = sd(Meditation),
+  sum_med_exp = sum(Meditation>1), 
+  sum_no_med_exp=sum(Meditation==1))
+
+demo_pfc |>
+  ggplot(aes(Meditation))+
+  geom_bar()
+
+
+## TMS      ======
+###  TMS expectation       ========
+names(demo_pfc)
+demo_pfc |>
+  select(contains("_expectation")) |> 
+  mutate(n = 1:40) |>
+  pivot_longer(contains("expectation")) |>
+  summarise(
+    .by = name, 
+    `No expectation`   = sum(value==0),
+    `Yes, but not how` = sum(value==3),
+    `Yes, reduce`      = sum(value==2),
+    `Yes, increase`    = sum(value==1),
+    `Don't know`       = sum(value==4)
+  ) |> 
+  pivot_longer(c(everything(), -name), names_to="Expectation") |>
+  pivot_wider(names_from = name, values_from = value) |>
+  rename(`Session 1` = S1_TMS_expectation, `Session 2` = S2_TMS_expectation ) |>
+  mutate(n =  "") |>
+  gt() |>
+  cols_move(n, after ="Session 1") |>
+  cols_label(n = "") -> stimulation_expectation
+stimulation_expectation
+if(save_tables){
+  gtsave(stimulation_expectation, "tables/Stimulation_Expectation.docx")
+}
+
+
+### Guesses     ======
+# Fetch the values
+guess_table <- demo_pfc |>
+  select(contains("FB_stimulation"), contains("researcher"),subj, -contains("conf")) |>
+  mutate(across(everything(), as.integer)) |>
+  pivot_longer(c(contains("Researcher"), contains("_FB_"))) |>
+  mutate(s = ifelse(str_detect(name, "[Ss]1"), "S1", "S2"),
+         pers = ifelse(str_detect(name, "Resear"), "Researcher", "Participant"),
+         ) |>
+  left_join(
+    demo_pfc |>
+      select(contains("true"), subj) |>
+      pivot_longer(contains("true")) |> 
+      mutate(name = ifelse(name=="true_stim1", "S1","S2")) |>
+      rename(true_stim=value),
+    by = join_by("subj"=="subj", "s"=="name" )
+  ) |>
+  summarise(
+    .by = c(s, pers, true_stim),
+    val1 = sum(value),
+    val0 = sum(value==0)
+  ) |> 
+  arrange(s, pers, true_stim) |>
+  pivot_wider(names_from=pers, values_from = c(val1, val0)) |>
+  select(s, true_stim, val0_Participant, val1_Participant, val0_Researcher, val1_Researcher)
+guess_table
+
+# GT it
+guess_table_d <- 
+  guess_table |>
+  add_row(
+    guess_table |> 
+      pivot_longer(contains("val")) |>
+      summarise(
+        .by = c(s, name),
+        sum = sum(value)
+      ) |>
+      pivot_wider(names_from = name, values_from = sum) |>
+      mutate(true_stim=c(3,3))
+  ) |> 
+  arrange(s, true_stim) |> 
+  mutate(
+    par_sum = val0_Participant+val1_Participant,
+    res_sum = val0_Researcher+val1_Researcher,
+    true_stim = case_when(
+      true_stim==1~"True",
+      true_stim==0~"False",
+      true_stim==3~"Total",)
+  ) |>
+  mutate(b="") |>
+  gt() |>
+  tab_spanner("Participants",
+              c(val0_Participant,val1_Participant, par_sum) )|>
+  tab_spanner("Researcher", 
+              c(val0_Researcher, val1_Researcher, res_sum)) |>
+  tab_spanner("True state", c(s, true_stim)) |>
+  cols_label( val0_Participant = "False",
+              val1_Participant = "True",
+              val0_Researcher = "False", 
+              val1_Researcher = "True", 
+              par_sum = "Total", res_sum = "Total",
+              b = "", s = "", true_stim="") |>
+  cols_move(b, par_sum) 
+guess_table_d
+if(save_tables){
+  # Save it 
+  gtsave(guess_table_d, "tables/Blinding_Guesses_for_Participants_and_Researchers.docx")  
+}
+
+#### Stat tests         ======
+demo_pfc |>
+  select(contains("FB_stimulation"), contains("researcher"),subj, -contains("conf"))  |>
+  mutate(across(everything(), as.integer)) |>
+  pivot_longer(c(contains("Researcher"), contains("_FB_"))) |>
+  mutate(s = ifelse(str_detect(name, "[Ss]1"), "S1", "S2"),
+         pers = ifelse(str_detect(name, "Resear"), "Researcher", "Participant"),
+         name=NULL,
+  ) |>
+  left_join(
+    demo_pfc |>
+      select(contains("true"), subj) |>
+      pivot_longer(contains("true")) |> 
+      mutate(name = ifelse(name=="true_stim1", "S1","S2")) |>
+      rename(true_stim=value),
+    by = join_by("subj"=="subj", "s"=="name" )) |>
+  summarise(
+    .by    = c(s, pers), 
+    chisq_s  = chisq.test(value, true_stim)$statistic,
+    chisq_p  = chisq.test(value, true_stim)$p.value,
+    fisher_p = fisher.test(value, true_stim)$p.value,
+  )
+
+### Confidence in guesses       ======
+# Fetch confidence values
+confidence_in_guess <- 
+  demo_pfc |> 
+  select(contains("conf"), subj, -contains("_task_")) |>
+  mutate(across(everything(), as.integer)) |>
+  pivot_longer(contains("_")) |>
+  mutate(
+    split = ifelse(str_detect(name, "conf"), "conf", "true_stim"),
+    res = ifelse(str_detect(name, "[Rr]es"), "Researcher", "Participant"),
+    session = ifelse(str_detect(name, "[Ss]1"), "S1", "S2")
+  ) |>
+  left_join(
+    demo_pfc |>
+      select(subj, contains("true_stim")) |>
+      pivot_longer(contains("true_stim")) |>
+      mutate(name = ifelse(str_detect(name,"1"), "S1", "S2")) |>
+      rename(true_stim = value),
+    by = join_by(subj, session == name)
+  ) |>
+  select(-name) |>
+  pivot_wider(names_from=c(res, true_stim), values_from=value) |>
+  summarise(
+    .by = c(session),
+    across(c(matches("_[01]")), ~mean(.x, na.rm=T))
+  ) |>
+  select(session, starts_with("Part"), starts_with("Resear"))
+confidence_in_guess
+
+confidence_in_guess |> gt()
+# 
+# # GT it
+# guess_table_confidence <- 
+#   guess_table |> 
+#   add_row(
+#     guess_table |> 
+#       pivot_longer(contains("val")) |>
+#       summarise(
+#         .by = c(s, name),
+#         sum = sum(value)
+#       ) |>
+#       pivot_wider(names_from = name, values_from = sum) |>
+#       mutate(true_stim=c(3,3))
+#   ) |>
+#   mutate(
+#     par_sum = val0_Participant+val1_Participant,
+#     res_sum = val0_Researcher+val1_Researcher,) |>
+#   bind_rows(
+#     confidence_in_guess |>   
+#       rename(val0_Participant = Participant_0, val1_Participant = Participant_1, 
+#              val0_Researcher = Researcher_0, val1_Researcher = Researcher_1,
+#              s = session)
+#   ) |>
+#   mutate(true_stim = ifelse(is.na(true_stim), 4, true_stim)) |>
+#   arrange(s, true_stim) |>
+#   mutate(
+#     true_stim = case_when(
+#       true_stim==0~"False", 
+#       true_stim==1~"True", 
+#       true_stim==3~"Total", 
+#       true_stim==4~"Confidence"),
+#       b="",
+#     across(where(is.numeric), ~fmt_APA_numbers(.x, .chr = T) ),
+#     par_sum=ifelse(is.na(par_sum), "", par_sum),
+#     res_sum=ifelse(is.na(res_sum), "", res_sum)
+#   ) |>
+#   gt() |>
+#   tab_spanner("Participants",
+#               c(val0_Participant,val1_Participant, par_sum) )|>
+#   tab_spanner("Researcher", 
+#               c(val0_Researcher, val1_Researcher, res_sum)) |>
+#   tab_spanner("True state", c(s, true_stim)) |>
+#   cols_label( val0_Participant = "False",
+#               val1_Participant = "True",
+#               val0_Researcher = "False", 
+#               val1_Researcher = "True", 
+#               b = "", s = "", true_stim="",
+#               par_sum="Total", res_sum="Total") |>
+#   cols_move(b, par_sum)
+#   
+# guess_table_confidence
+# if(save_tables){
+#   gtsave(guess_table_confidence, "tables/Blinding_Guesses_for_Participants_and_Researchers_and_Confidence.docx")  
+# }
+
+### Change prediction?       ======
+demo_pfc |>
+  select(S2_FB_change_answer) |> 
+  summarise(
+    `No`       = sum(S2_FB_change_answer==3, na.rm=T),
+    `Not sure` = sum(S2_FB_change_answer==2, na.rm=T),
+    `Yes`      = sum(S2_FB_change_answer==1, na.rm=T),
+  )
+
+#### test the changes      ====
+demo_pfc |>
+  select(contains("stimulation"), -contains("confidence"), contains("true_stim"), S2_FB_change_answer) |>
+  mutate(across(where(is.numeric), as.integer),
+         S1_FB_stimulation = case_when(
+           S2_FB_change_answer==3 & S1_FB_stimulation == 1 ~ 0,
+           S2_FB_change_answer==3 & S1_FB_stimulation == 0 ~ 1,
+           T ~ S1_FB_stimulation
+         )) |>
+  summarise(
+    f.p = fisher.test(S1_FB_stimulation, true_stim1)$p.value,
+    chi.t = chisq.test(S1_FB_stimulation, true_stim1)$statistic,
+    chi.p = fisher.test(S1_FB_stimulation, true_stim1)$p.value,
+  )
+
+
+### Other questions         ======
+demo_pfc |>
+  select(S1_FB_subject_tracker, S2_FB_subject_tracker, S1_FB_motivation, 
+         S2_FB_motivation, S1_FB_task_confidence,S2_FB_task_confidence, S1_Tired, S2_Tired) |>
+  pivot_longer(everything()) |>
+  summarise(
+    .by = name,
+    m = mean(value), 
+    sd = sd(value)
+  )
+
+
+
+#   Adverse effects:          ======
+demo_pfc |>
+  select(contains("Checklist"), -S2_Checklist_comments, -S1_Checklist_comments, subj,
+         -S1_Checklist_other_specify) |> 
+  pivot_longer( c(everything(), -subj), ) |> 
+  mutate( session = str_split(name, "_" ) |> map_chr(1),
+          name = str_split( name, "_Checklist_" ) |> map_chr(2)) |> 
+  select( subj, session, name, value ) |> #-> tms_checklist
+  # Add stimulation type
+  # tms_checklist |>
+  left_join(demo_pfc |> 
+              select(subj, true_stim1, true_stim2) |> 
+              pivot_longer(c(true_stim1, true_stim2), 
+                           names_to = "session", values_to = "stimulation") |>
+              mutate(session = ifelse(session=="true_stim1", "S1", "S2")), 
+            by = join_by(subj, session)) |>  #-> tms_checklist_stim
+  select(-session) |>
+  pivot_wider(names_from = stimulation, values_from = value) |>
+  # Transforme NA to 1 (assumed)
+  # If this is used ????
+  mutate(`0` = ifelse(`0` %in% c(NA), 1, `0`),
+         `1` = ifelse(`1` %in% c(NA), 1, `1`)) ->
+  tms_checklist_stim_diff
+
+# Rating of adverse outcomes (general)
+tms_checklist_stim_diff |> 
+  filter(!str_detect(name, "_TMS")) |> 
+  group_by(name) |>
+  summarize(
+    t = t.test(`0`, `1`, paired=T)$statistic,
+    df = t.test(`0`, `1`, paired=T)$parameter,
+    p = t.test(`0`, `1`, paired=T)$p.value,
+    sham_m = mean(`0`, na.rm = T),
+    sham_sd = sd(`0`, na.rm = T),
+    real_m = mean(`1`, na.rm = T),
+    real_sd = sd(`1`, na.rm = T),
+    diff_m = mean(sham_m - real_m, na.rm = T),
+    ) ->
+  #diff_sd = sd(sham_m - real_m, na.rm = T)
+  checklist_outcomes
+
+  # tms_checklist_stim_diff |> 
+  #   filter(!str_detect(name, "_TMS")) |> 
+  #   group_by(name) |>
+  #   filter(name=="Neck_pain") |> View()
+  # na.omit() |>
+  #   summarise(
+  #     t = t.test(`0`, `1`, paired=T)$statistic,
+  #     p = t.test(`0`, `1`, paired=T)$p.value,
+  #   )
+  
+# Adverse outcome related to TMS stimulation?
+tms_checklist_stim_diff |> 
+  filter(str_detect(name, "_TMS")) |> 
+  group_by(name) |>
+  summarize(
+    r_t = t.test(`0`, `1`, paired=T)$statistic,
+    r_t = t.test(`0`, `1`, paired=T)$parameter,
+    r_p = t.test(`0`, `1`, paired=T)$p.value,
+    sham_m_r_t = mean(`0`, na.rm = T),
+    sham_sd_r_t = sd(`0`, na.rm = T),
+    #    sh_max = max(`0`, na.rm=T),
+    # Sham max? 
+    real_m_r_t = mean(`1`, na.rm = T),
+    real_sd_r_t = sd(`1`, na.rm = T),
+    m_diff = mean(sham_m_r_t - real_m_r_t)) |>
+  # Rename to join together
+  mutate( name = str_split(name, "_TMS") |> map_chr(1) ) ->
+  checklist_o_related_tms
+
+
+## Generate table      =====
+full_join(checklist_outcomes, checklist_o_related_tms, by=join_by(name)) |>
+  #select(c(everything(), real_m_r_t, real_sd_r_t)) |> View()
+  mutate(name = str_replace_all(name, "_", " "),
+         empty1="",
+         empty2="",
+         empty3="",
+         empty4="",
+         empty5="",) |> 
+  rename(Symptom = name) |> 
+  # GT table
+  gt() |> 
+  opt_table_font(font = c("san-serif", "Times New Roman")) |>
+  fmt_number() |>
+  cols_align("center", c(2:13)) |>
+  cols_move(empty1, sham_sd) |>
+  cols_move(empty2, real_sd) |>
+  cols_move(empty3, diff_m) |>
+  cols_move(empty4, sham_sd_r_t) |>
+  cols_move(empty5, real_sd_r_t) |>
+  tab_spanner(
+    "Sham",
+    c(sham_m, sham_sd) ) |> 
+  tab_spanner(
+    "Real",
+    c(real_m, real_sd) ) |> 
+  tab_spanner(
+    "Sham", id = "Sham2",
+    c(sham_m_r_t, sham_sd_r_t) ) |> 
+  tab_spanner(
+    "Real", id = "Real2",
+    c(real_m_r_t, real_sd_r_t) ) |> 
+  tab_spanner(
+    "Symptom report",
+    c(sham_m, sham_sd, real_m, real_sd, diff_m, empty1, empty2) ) |>
+  tab_spanner(
+    "Relation to TMS",
+    c(sham_m_r_t, sham_sd_r_t, real_m_r_t, real_sd_r_t, m_diff, empty4, empty5) ) |>
+  tab_footnote(md("Note. Symptom reports  are reported using four categories:\
+                  (1) absent, (2) mild, (3) moderate, and (4) severe.\
+                  The relation of the symptom to the TMS are answered using 5 categories: \
+                  (1) no, (2) unlikely, (3) possible, (4) probable, and (5) definitively.")) |> 
+  tab_header(md("**TMS adverse outcomes**")) |>
+  cols_label(
+    sham_m = md("M"),
+    sham_sd = md("SD"),
+    real_m = md("M"),
+    real_sd = md("SD"),
+    diff_m = md("Mdiff"),
+    sham_m_r_t = md("M"),
+    sham_sd_r_t = md("SD"),
+    real_m_r_t = md("M"),
+    real_sd_r_t = md("SD"),
+    m_diff = md("Mdiff"),
+    empty1 = "",
+    empty2 = "",
+    empty3 = "",
+    empty4 = "",
+    empty5 = "") |>
+  tab_options(
+    # hide the top-most border
+    table.border.top.color = "white",
+    # make the title size match the body text
+    heading.title.font.size = px(16),
+    # change the column labels section
+    column_labels.border.top.width = 3,
+    column_labels.border.top.color = "black", 
+    column_labels.border.bottom.width = 3,
+    column_labels.border.bottom.color = "black",
+    # change the bottom of the body
+    table_body.border.bottom.color = "black",
+    # hide the bottom-most line or footnotes
+    # will have a border
+    table.border.bottom.color = "white",
+    # make the width 100%
+    table.width = pct(100),
+    table.background.color = "white"
+  ) |>
+  tab_style(
+    style = list(
+      # remove horizontal lines
+      cell_borders(
+        sides = c("top", "bottom"),
+        color = "white",
+        weight = px(1)
+      ),
+      # remove row striping in Markdown documents
+      cell_fill(color = "white", alpha = NULL)
+    ),
+    #do this for all columns and rows
+    locations = cells_body(
+      columns = everything(),
+      rows = everything()
+    )) # |> # only save when done
+gtsave("tables/adverse_outcomes_table-V2.docx")
+
+##  T-tests     ======
+t_tests <- tibble()
+for(x in unique(tms_checklist_stim_diff$name)){
+  print(x)
+  t.test(tms_checklist_stim_diff$`0`[tms_checklist_stim_diff$name == x],
+         tms_checklist_stim_diff$`1`[tms_checklist_stim_diff$name == x], 
+         paired = T) -> test
+  print(tms_checklist_stim_diff$`0`[tms_checklist_stim_diff$name == x])
+  print(tms_checklist_stim_diff$`1`[tms_checklist_stim_diff$name == x])
+  rbind(t_tests, tibble(var = x,
+                        df = test$parameter, 
+                        t = test$statistic,
+                        p = test$p.value)) -> t_tests
+}
+
+length(unique(tms_checklist_stim_diff$name))
+
+t_tests |>
+  mutate(
+    adjust_p = p.adjust(p, method = "bonferroni")) ->
+  t_tests
+
+t_tests |>
+  filter(!str_detect(var, "_TMS")) |>
+  mutate(symptom_corr_p = p.adjust(p, method = "bonferroni"))
+t_tests |>
+  filter(str_detect(var, "_TMS")) |>
+  mutate(tms_corr_p = p.adjust(p, method = "bonferroni"))
+
+
+
+##  Figures    ======
+
+# Symptom report
+p1 <-
+tms_checklist_stim_diff |> 
+  filter(!str_detect(name, "_TMS")) |>
+  mutate( name = str_replace_all(name, "_TMS", ""),
+          name = str_replace_all(name, "_", " "),
+          name = factor(name, levels = c(
+            "other",
+            "Trouble concentrating",
+            "Tingling",
+            "Sudden mood change",
+            "Sleepiness",
+            "Skin redness",
+            "Scalp pain",
+            "Neck pain",
+            "Itching",
+            "Headache",
+            "Burning sensation"), ordered = T)) |>
+  rename(Sham = `0`, Real = `1`) |>
+  pivot_longer(c(Sham, Real), names_to = "stim") |>
+  ggplot(aes(value, name, group = stim)) +
+  facet_wrap( ~ stim) + 
+  geom_point(position = position_jitter(width = 0.1, height = 0.3), alpha =.25) +
+  stat_summary(fun.data = mean_se, col="red", position = position_nudge()) +
+  scale_x_continuous(breaks = 1:5, 
+                     labels = c("(1) No ", "(2) Unlikely", "(3) Possible", "(4) Probable", "(5) Definitively")) +
+  labs(y="Symptom", x = "", title = "A) Side-effect report")
+#ggsave("figs/TMS_Checklist/symptom_report.svg", p1,  height = 5, width = 10)
+
+# Relation to TMS
+p2 <-
+  tms_checklist_stim_diff |> 
+  filter(str_detect(name, "_TMS")) |>
+  mutate( name = str_replace_all(name, "_TMS", ""),
+          name = str_replace_all(name, "_", " "),
+          name = factor(name, levels = c(
+            "other",
+            "Trouble concentrating",
+            "Tingling",
+            "Sudden mood change",
+            "Sleepiness",
+            "Skin redness",
+            "Scalp pain",
+            "Neck pain",
+            "Itching",
+            "Headache",
+            "Burning sensation"), ordered = T)) |>
+  rename(Sham = `0`, Real = `1`) |>
+  pivot_longer(c(Sham, Real), names_to = "stim") |>
+  ggplot(aes(value, name, group = stim)) +
+  facet_wrap( ~ stim) + 
+  geom_point(position = position_jitter(width = 0.1, height = 0.3), alpha =.25) +
+  stat_summary(fun.data = mean_se, col="red", position = position_nudge()) +
+  scale_x_continuous(breaks = 1:5, 
+                     labels = c("(1) No ", "(2) Unlikely", "(3) Possible", "(4) Probable", "(5) Definitively")) +
+  labs(y="Symptom", x = "Response", title = "B) Relation to TMS")
+#ggsave("figs/TMS_Checklist/relation_to_tms.svg", p2, height = 5, width = 10)
+
+library(patchwork)
+p1+p2+plot_layout(nrow = 2)
+ggsave("figs/TMS_Checklist/full.png", height=10, width=12)
+
+
+
+p3 <-""
+  tms_checklist_stim_diff |> 
+  rename(Sham = `0`, Real = `1`) |>
+  rowwise() |> mutate(inter = Sham * Real) |> ungroup() |>
+  mutate(TMS = ifelse(str_detect(name, "_TMS"), "TMS", "Effect"), 
+         name = str_replace_all(name, "_TMS", ""),
+         name = str_replace_all(name, "_", " "),
+         name = factor(name, levels = c(
+           "other",
+           "Trouble concentrating",
+           "Tingling",
+           "Sudden mood change",
+           "Sleepiness",
+           "Skin redness",
+           "Scalp pain",
+           "Neck pain",
+           "Itching",
+           "Headache",
+           "Burning sensation"), ordered = T)) |>
+  # pivot_wider(names_from = TMS, values_from=c("Sham", "Real", "inter")) 
+  pivot_longer(c("Sham", "Real", "inter"), names_to ="stim") -> pl_dat
+pl_dat |>
+  filter(!(stim=="inter")) |>
+  ggplot(aes(value, name, group = stim, col=interaction(TMS,stim))) +
+  facet_wrap(TMS ~ stim) + 
+  geom_point(
+    data = pl_dat |> filter(TMS=="Effect"), 
+    aes(y = name,),
+    position = position_jitter(.1,.1)
+  )
+
+
+position_jitterdodge(dodge)
+  
+
+
+
+# Ridges (not finished))
+library(ggridges)
+tms_checklist_stim_diff |>
+  filter(str_detect(name, "_TMS")) |> 
+  mutate(name = factor(name)) |>
+  ggplot(aes(y=name, x=`0`))+
+  geom_density_ridges(scale = .7, jittered_points = T, 
+                      position = position_points_jitter(width = .1)) + 
+  scale_x_continuous(breaks = 1:5)
+geom_point(position = position_(.01, dodge.width =  0))

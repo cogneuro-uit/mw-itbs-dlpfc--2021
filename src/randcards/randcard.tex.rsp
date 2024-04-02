@@ -1,0 +1,63 @@
+\documentclass[avery5371,grid,fronts]{flashcards}
+% See Flashcard documentation: https://ctan.org/pkg/flashcards?lang=en
+
+\renewcommand{\cardpaper}{a4paper}
+\renewcommand{\cardpapermode}{portrait}
+\renewcommand{\cardrows}{3}
+\renewcommand{\cardcolumns}{1}
+\setlength{\cardheight}{80mm}
+\setlength{\cardwidth}{180mm}
+\setlength{\topoffset}{0in}
+\setlength{\oddoffset}{0in}
+\setlength{\evenoffset}{0in}
+%\setlength{\topoffset}{0.50in}
+%\setlength{\oddoffset}{0.75in}
+%\setlength{\evenoffset}{0.75in}
+
+% -------------------
+% Packages
+% -------------------
+%\usepackage{amsmath,amssymb,geometry}
+\geometry{bindingoffset=0.0cm,hratio=1:1}
+
+\usepackage[bitstream-charter]{mathdesign}
+\usepackage[T1]{fontenc}
+
+
+% -------------------
+% Card Options
+% -------------------
+\cardfrontstyle{empty}
+\cardbackstyle{empty}
+
+
+
+% -------------------
+% Content
+% -------------------
+\begin{document}
+
+\cardfrontstyle{headings}
+\cardfrontfoot{\today (<%=liststamp%>)}
+
+<%
+for(i in 1:(dim(randlist)[1])){
+%>
+\begin{flashcard}[<%=first(randlist$region)%>]{
+\Huge{<%=randlist$subj[i]%>}
+\begin{center}
+\begin{itemize}
+\item[] \huge 1. session: <%=randlist$session1[i]%> \huge$\square$
+\item[] \huge 2. session: <%=randlist$session2[i]%> \huge$\square$
+\end{itemize}
+\end{center}
+}
+\end{flashcard}
+
+<%
+}
+%>
+
+
+\end{document}
+
