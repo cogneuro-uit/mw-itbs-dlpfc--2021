@@ -1,12 +1,14 @@
 library(ProjectTemplate)
+# migrate.project() # you might need to run this. 
 load.project()
 
+# Libraries
 library(brms)
 library(bayesplot)
 library(cmdstanr)
 library(tidybayes)
 
-
+# Bayesian plotting function
 bayes_plot <- function( data_list, variables = NULL ){
   int <- variables(data_list)[str_detect(variables(data_list), "Intercept")]
   remove_list <- c(c("disc","lp__", "lprior"),variables,int)
@@ -27,8 +29,22 @@ bayes_plot <- function( data_list, variables = NULL ){
 }
 
 
-# Transformations       =====
-# Reverse the probes (higher value correspond to the probe Q)
+# Data transformation        =====
+#' Reverse probes values.
+#' Data transformation for MW, MB and spontaneous MW 
+#' From the task script, the quesiton, and values correspond to: 
+#'   instruction_text = u"To what degree where you focused on the task right before this question?",
+#'   _labels = [u"Clearly \n NOT FOCUSED", "", "", u"Clearly \n FOCUSED"]) # 0 - 4 respectively
+#'   instruction_text = u"To the degree to which you were not focusing on the task, were you thinking about nothing or were you thinking about something?",
+#'   scale_labels = [u"Clearly \n NOTHING", "", "", u"Clearly \n SOMETHING"]) # 0 - 4 respectively
+#'   instruction_text = u"Were you deliberate about where you focused your attention (either on-task or elsewhere) or did it happen spontaneously?",
+#'   scale_labels = [u"Clearly \n SPONTANEOUS", "", "", u"Clearly \n DELIBERATE"]) # 0 - 4 respectively
+#'  
+#'  With this transformation:
+#'  - The mind wandering probe (probe1) indicate 0 as task focus and 4 as mind wandering.
+#'  - The mind blanking probe (probe2) indicate 0 as content and 4 as mind blanking.
+#'  - The spontaneous mind wandeirng (probe3) indicate 0 as deliberate mind wandering, and 4 as spontaneous mind wandering. 
+
 d.pro.stim_pfc |> 
   mutate(
     probe1 = ordered(5-as.numeric(probe1)),
@@ -38,13 +54,13 @@ d.pro.stim_pfc |>
   ) -> pfc
 
 
+# rmANOVA                 =====
+
 #' We will perform a 2x4 rmANOVA (repeated measures analysis of variance) 
 #' of task-focus (mind wandering) with stimulation type (active versus sham) 
 #' and block (B0, B1, B2, & B3).
-#' 
 
-# ANOVA test    =====
-## Anova
+# Transformation
 pfc |>  
   select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
   group_by(subj,block,stimulation) |>
@@ -55,13 +71,12 @@ pfc |>
   ungroup() -> 
   pfc_anova_data
 
-
-# To jasp
+# Export data for JASP. 
 pfc_anova_data |>
   pivot_wider(names_from = c(stimulation, block), values_from = c(MW1, MW2, MW3, AE, BV)) -> pfc_anova_data2
 write_csv(pfc_anova_data2, file="data/pfc_anova.csv")
 
-## These result in the same numbers 
+# Results from these functions seems to correspond to JASP
 aov(MW1 ~ block*stimulation + Error(subj/(block*stimulation)), 
                             # Within subject
     data=pfc_anova_data) |> summary()
@@ -74,42 +89,41 @@ aov(AE ~ block * stimulation + Error(subj/(block*stimulation)),
 aov(BV ~ block * stimulation + Error(subj/(block*stimulation)), 
     data=pfc_anova_data) |> summary()
   # nothing
+#' No interaction between block and stimulation was found. We therefore do not do
+#' the contrast analysis.  
+
+##  Contrasts     =====
+# Note. We do not report these.  
+# Check for significant increase in variables compared to baseline
+### MW            =====
+with(filter(pfc_t, variable=="MW", block=="B1"),
+     t.test(value ~ stimulation, paired=T))
+with(filter(pfc_t, variable=="MW", block=="B2"),
+     t.test(value ~ stimulation, paired=T))
+# Sig 
+# Compared to baseline, block 2 is significantly increased. 
+with(filter(pfc_t, variable=="MW", block=="B3"),
+     t.test(value ~ stimulation, paired=T))
+### AE               =====
+with(filter(pfc_t, variable=="AE", block=="B1"),
+     t.test(value ~ stimulation, paired=T))
+with(filter(pfc_t, variable=="AE", block=="B2"),
+     t.test(value ~ stimulation, paired=T))
+with(filter(pfc_t, variable=="AE", block=="B3"),
+     t.test(value ~ stimulation, paired=T))
+### BV                =======
+with(filter(pfc_t, variable=="BV", block=="B1"),
+     t.test(value ~ stimulation, paired=T))
+with(filter(pfc_t, variable=="BV", block=="B2"),
+     t.test(value ~ stimulation, paired=T))
+# sig
+with(filter(pfc_t, variable=="BV", block=="B3"),
+     t.test(value ~ stimulation, paired=T))
 
 
-#' If this rmANOVA is significant, we will calculate the difference between 
-#' real and sham session (real-sham) for each block (both measures are 
-#' within-subject). We will then compare this difference between B0 
-#' (baseline) and the other three blocks using planned contrast (with Tukey's 
-#' adjustment for multiple comparisons). We expect that this difference will 
-#' be larger than baseline (B0) in all three post-stimulation blocks (B1, B2, 
-#' and B3) indicating that real stimulation reduced the amount of MW relative 
-#' to sham stimulation. Next, we will investigate whether this tentative effect 
-#' will grow with repeated stimulations by comparing real-sham difference 
-#' between B1 and B2, B1 and B3 as well as B2 and B3. We expect that all these 
-#' comparisons to be larger than zero, indicating that effect gets stronger 
-#' with repeated application of the stimulation. 
-
-
-# first plot below
-
-
-#' prop MB and spontaneous MW across blocks
-#' from stimulation script:
-#'   instruction_text = u"To what degree where you focused on the task right before this question?",
-#'   _labels = [u"Clearly \n NOT FOCUSED", "", "", u"Clearly \n FOCUSED"])
-#'   instruction_text = u"To the degree to which you were not focusing on the task, were you thinking about nothing or were you thinking about something?",
-#'   scale_labels = [u"Clearly \n NOTHING", "", "", u"Clearly \n SOMETHING"])
-#'   instruction_text = u"Were you deliberate about where you focused your attention (either on-task or elsewhere) or did it happen spontaneously?",
-#'   scale_labels = [u"Clearly \n SPONTANEOUS", "", "", u"Clearly \n DELIBERATE"])
-#'  This has been reversed at the start:
-#'  Higher MW is indicated with higher value;
-#'  Higher MB is indicated wiht higher value;
-#'  Higher SMW is indicated with higher value.
-
-# Plots  ======
-
-## basic = mw+bv+ae         ======
-
+# Plots                            ======
+## Effect over block and stimulation:         =====
+# Transform the data for visualization.
 pfc |>
   mutate(probe1_n = as.integer(probe1)) |>
   select(subj, region, stimulation, block, proberound, zlogapen, zlogbv, probe1_n) |>
@@ -132,9 +146,7 @@ pfc |>
   mutate(variable=fct_recode(variable, AE="ae",BV="bv",MW="mw"),
          variable=factor(variable, levels=c("MW","BV","AE"))) -> pfc_t
 
-
-##   p1 - MW+BV+AE         ======
-# over B & S  # -> p1
+###  MW, BV and AE         ======
 pfc_t |>
   mutate(variable=fct_recode(variable, `Approximate Entropy`="AE",
                              `Behavioural Variability`="BV", `Mind Wandering`="MW"),
@@ -161,12 +173,12 @@ pfc_t |>
       levels = c("Mind Wandering", "Behavioural Variability", "Approximate Entropy")),
       lab = c("a)","b)","c)")),
     aes("B0", .29, col = NULL, group=NULL, label = lab), size = 5, show.legend = F)
-  theme(legend.position = "top", legend.direction = "horizontal")
-  # -> p1
+  theme(legend.position = "top", legend.direction = "horizontal") # -> p1
 ggsave("figs/prereg/descriptive_MW-BV-AE+block+stim-v4.svg", dpi=300, width=6.5, heigh=3.5)
 
 
-## p2 = MB & SMW    =====
+### MB and S-MW             =====
+# Data transformation for MB & SMW:
 pfc |> 
   na.omit() |> 
   select(subj, region, stimulation, block, proberound, zlogapen, zlogbv, starts_with("probe")) |>
@@ -192,6 +204,7 @@ pfc |>
   pivot_longer(starts_with("B"), names_to = c("block","variable"), names_sep = "_") |>
   mutate(variable=fct_recode(variable, MB="mb", `SMW`="smw")) -> data.probe.cond.diff4
 
+# Plot for MB & SMW
 data.probe.cond.diff4 |>
   filter(variable %in% c("MB", "SMW")) |>
   mutate(variable = ifelse(variable=="MB", "Mind Blanking", "Spontaneous Mind Wandering"),
@@ -207,170 +220,36 @@ data.probe.cond.diff4 |>
   # theme(legend.position ="top", legend.direction = "horizontal")+
 ggsave(filename ="figs/prereg/descriptive_MB-SMW+block+stim-v2.svg", dpi = 300, width=6, height=3.5)
 
-### p1+p2 = Combined plot         ====
-# # not used
-# p1+(p2+ggplot()+theme_void())+plot_layout(nrow = 2)#,   widths = c(3, 2))
-# ggsave(filename = "figs/prereg/pfc_paper_summary.jpeg", width=11, height=3)
-
-
 
 # Bayesian models   ======
 
-#' Quantify differences using the Bayesian regression models
-# pfc |>  
-#   select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
-#   group_by(subj,block,stimulation) |>
-#   summarize(MW1=mean(as.numeric(MW1)), MW2=mean(as.numeric(MW2)), MW3=mean(as.numeric(MW3)), 
-#             AE=mean(AE), BV=mean(BV)) |>
-#   mutate(stimulation = factor(stimulation, levels=c("sham", "real"))) -> pfc_data_rdy
-# 
-
-## Mind wandering       =====
-
-### Full model  (BV*AE)      =====
-mod.pfc.mw.behav <- brm(probe1 ~ stimulation + block*stimulation + zlogapen * zlogbv + scale(proberound) + (1|subj), 
-                 init=0, family=cumulative("probit"), data=pfc, 
-                 backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.mw.behav) + labs(title="Full model") -> p_mw1
-p_mw1
-
-### MW w/out BV*AE       =====
+## MW           =====
 mod.pfc.mw <- brm(probe1 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
                   init=0, family=cumulative("probit"), data=pfc, 
                   backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.mw)+ labs(title="Full -AE&BE") -> p_mw2
-p_mw2
-
-# Add LOO criteria 
-mod.pfc.mw |> add_criterion(criterion = c("loo","bayes_R2")) -> mod.pfc.mw
-# compare LOO 
-loo_compare(mod.pfc.mw.behav, mod.pfc.mw) 
+bayes_plot(mod.pfc.mw)+ labs(title="Full -AE&BE")
+summary(mod.pfc.mw)
 
 
-
-### MW - common baseline    =====
-data.probe.cond.pfc <- pfc |> 
-  mutate(blockB1=as.integer(block=="B1"),
-         blockB2=as.integer(block=="B2"),
-         blockB3=as.integer(block=="B3"),
-         zproberound=scale(proberound))
-
-mod.pfc.mw2 <- brm(probe1 ~ blockB1 + blockB1:stimulation + blockB2 + blockB2:stimulation + blockB3 + 
-                     blockB3:stimulation + zproberound + (1|subj),  data=data.probe.cond.pfc,
-                   init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.mw2) + labs(title="Common baseline -AE&BV") -> p_mw3
-p_mw3
-
-add_criterion(mod.pfc.mw2, criterion = c("loo", "bayes_R2")) -> mod.pfc.mw2
-loo_compare(mod.pfc.mw2, mod.pfc.mw)
+## AE           ======
+mod.pfc.ae <- brm(zlogapen ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
+                  init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
+bayes_plot(mod.pfc.ae, "sigma")
+summary(mod.pfc.ae)
 
 
-## 3-way interaction BV      =====
-# 3 way intr BV
-mod.pfc.test <- brm(probe1 ~ zlogbv + zlogapen + stimulation + 
-                      # block
-                      blockB1 + blockB1:stimulation +
-                      blockB2 + blockB2:stimulation + 
-                      blockB3 + blockB3:stimulation + 
-                      # BV
-                      blockB1:zlogbv + zlogbv:blockB1:stimulation + 
-                      blockB2:zlogbv + zlogbv:blockB2:stimulation + 
-                      blockB3:zlogbv + zlogbv:blockB3:stimulation +
-                      # AE
-                      blockB1:zlogapen + zlogapen:blockB1:stimulation + 
-                      blockB2:zlogapen + zlogapen:blockB2:stimulation + 
-                      blockB3:zlogapen + zlogapen:blockB3:stimulation +
-                      zproberound + (1|subj),  
-                    data=data.probe.cond.pfc,
-                   init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000, cores=6)
-
-# BV prediction on MW 
-as.data.frame(mod.pfc.test) |> 
-  #colnames()
-  # Transform
-  mutate(B0_mw_sham=b_zlogbv,
-         B0_mw_real=b_zlogbv,
-         B1_mw_sham=b_zlogbv + `b_zlogbv:blockB1` ,
-         B1_mw_real=b_zlogbv + `b_zlogbv:blockB1` +`b_zlogbv:stimulationreal:blockB1`,
-         B2_mw_sham=b_zlogbv + `b_zlogbv:blockB2` ,
-         B2_mw_real=b_zlogbv + `b_zlogbv:blockB2` +`b_zlogbv:stimulationreal:blockB2`,
-         B3_mw_sham=b_zlogbv + `b_zlogbv:blockB3` ,
-         B3_mw_real=b_zlogbv + `b_zlogbv:blockB3` +`b_zlogbv:stimulationreal:blockB3`,
-         ) |>
-  select(starts_with("B", ignore.case = F)) |>
-  #gather(var, val) 
-  pivot_longer( everything() ) |>
-  separate_wider_delim(name, delim = "_", names = c("block", "var", "stimulation")) |>
-  mutate(var = case_when(var == "mw"~"MW",
-                         var == "bv"~"BV",
-                         var == "ae"~"AE"),
-         var = factor(var, levels = c("MW", "BV", "AE")),
-         stimulation = factor( stimulation, levels = c("sham", "real"))) |>
-  ggplot(aes( x = block, y = value, color = stimulation ))+
-  geom_hline(yintercept=0, linetype = "dashed") +
-  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
-  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  scale_y_continuous( breaks = seq(-1,1, 0.1) ) +
-  labs(title="BV+Block+stim -> MW ", y="")
-
-# AE prediction on MW 
-as.data.frame(mod.pfc.test) |> 
-  # colnames()
-  # combine:
-  # Transform
-  mutate(B0_mw_sham=b_zlogapen,
-         B0_mw_real=b_zlogapen,
-         B1_mw_sham=b_zlogapen + `b_zlogapen:blockB1` ,
-         B1_mw_real=b_zlogapen + `b_zlogapen:blockB1` +`b_zlogapen:stimulationreal:blockB1`,
-         B2_mw_sham=b_zlogapen + `b_zlogapen:blockB2` ,
-         B2_mw_real=b_zlogapen + `b_zlogapen:blockB2` +`b_zlogapen:stimulationreal:blockB2`,
-         B3_mw_sham=b_zlogapen + `b_zlogapen:blockB3` ,
-         B3_mw_real=b_zlogapen + `b_zlogapen:blockB3` +`b_zlogapen:stimulationreal:blockB3`,
-         ) |>
-  select(starts_with("B", ignore.case = F)) |>
-  #gather(var, val) 
-  pivot_longer( everything() ) |>
-  separate_wider_delim(name, delim = "_", names = c("block", "var", "stimulation")) |>
-  mutate(var = case_when(var == "mw"~"MW",
-                         var == "bv"~"BV",
-                         var == "ae"~"AE"),
-         var = factor(var, levels = c("MW", "BV", "AE")),
-         stimulation = factor( stimulation, levels = c("sham", "real"))) |>
-  ggplot(aes( x = block, y = value, color = stimulation ))+
-  geom_hline(yintercept=0, linetype = "dashed") +
-  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
-  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  scale_y_continuous( breaks = seq(-1,1, 0.1) ) +
-  labs(y  = "", title ="AE+Block+stim  ->  MW") 
+## BV           ======
+mod.pfc.bv <- brm(zlogbv ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
+                  init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
+bayes_plot(mod.pfc.bv, "sigma")
+summary(mod.pfc.bv)
 
 
-
-
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-# with bv/ae
-mod.pfc.test <- brm(probe1 ~ zlogbv * zlogapen + blockB1 + blockB1:stimulation + blockB2 + blockB2:stimulation + blockB3 + 
-                     blockB3:stimulation + zproberound + (1|subj),  data=data.probe.cond.pfc,
-                   init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.test)
-
-add_criterion(mod.pfc.test, criterion = c("loo", "bayes_R2")) -> mod.pfc.test
-loo_compare(mod.pfc.mw2, mod.pfc.test)
-#
-
-# Save params
-p_mw1+p_mw2+p_mw3
-ggsave("figs/model_params.png", width=12, height=4)
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-
-
-
-
-## Models      =====
+## MB      =====
+# For these latter probe (MB, SMW), we ignore the responses that were not preceeded by mind wandering.
 pfc |> 
-  filter(probe1>2) -> dd
+  filter(probe1 > 2) -> dd
 
-### MB probit model
 mod.pfc.mb <- brm(probe2 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
                  init=0, data=dd, family=cumulative(link="probit"), cores=6, 
                  backend = "cmdstanr", chains = 6, iter=3000)
@@ -378,7 +257,7 @@ bayes_plot(mod.pfc.mb)
 summary(mod.pfc.mb)
 
 
-### spontaneous MW    =====
+## SMW    =====
 mod.pfc.smw <- brm(probe3 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
                  init=0, data=dd, family=cumulative(link="probit"),  
                  backend = "cmdstanr", chains = 6, iter=3000)
@@ -386,56 +265,60 @@ bayes_plot(mod.pfc.smw)
 summary(mod.pfc.smw)
 
 
-### AE     ======
-mod.pfc.ae <- brm(zlogapen ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
-                 init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.ae, "sigma")
-summary(mod.pfc.ae)
-
-
-### BV     ======
-mod.pfc.bv <- brm(zlogbv ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
-                 init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.bv, "sigma")
-summary(mod.pfc.bv)
-
-
-### LOO criteria & save data ====
-
+## LOO criteria & save data ====
+mod.pfc.mw  <- brms::add_criterion(mod.pfc.mw,  criterion = c("bayes_R2", "loo"))
 mod.pfc.ae  <- brms::add_criterion(mod.pfc.ae,  criterion = c("bayes_R2", "loo"))
 mod.pfc.bv  <- brms::add_criterion(mod.pfc.bv,  criterion = c("bayes_R2", "loo"))
 mod.pfc.mb  <- brms::add_criterion(mod.pfc.mb,  criterion = c("bayes_R2", "loo"))
 mod.pfc.smw <- brms::add_criterion(mod.pfc.smw, criterion = c("bayes_R2", "loo"))
-
 
 save(mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, file="data/export/paper_vars.RData")
 load("data/export/paper_vars.RData")
 
 
 
-#   Contrasts ???     =====
-with(filter(pfc_t, variable=="MW", block=="B1"),
-     t.test(value ~ stimulation, paired=T))
-with(filter(pfc_t, variable=="MW", block=="B2"),
-     t.test(value ~ stimulation, paired=T))
-# Sig
-with(filter(data.probe.cond.diff4, variable=="MW", block=="B3"),
-     t.test(value ~ stimulation, paired=T))
+# Other         =====
+# not analysis
 
-with(filter(data.probe.cond.diff, variable=="AE", block=="B1"),
-     t.test(value ~ stimulation, paired=T))
-with(filter(data.probe.cond.diff, variable=="AE", block=="B2"),
-     t.test(value ~ stimulation, paired=T))
-with(filter(data.probe.cond.diff, variable=="AE", block=="B3"),
-     t.test(value ~ stimulation, paired=T))
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# WITH  BV & AE
+mod.pfc.test <- brm(probe1 ~ zlogbv * zlogapen + 
+                      blockB1 + blockB1:stimulation + 
+                      blockB2 + blockB2:stimulation + 
+                      blockB3 + blockB3:stimulation + 
+                      zproberound + (1|subj),  data=pfc_t,
+                    init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
+bayes_plot(mod.pfc.test)
 
-with(filter(data.probe.cond.diff, variable=="BV", block=="B1"),
-     t.test(value ~ stimulation, paired=T))
-with(filter(data.probe.cond.diff, variable=="BV", block=="B2"),
-     t.test(value ~ stimulation, paired=T))
-# sig
-with(filter(data.probe.cond.diff, variable=="BV", block=="B3"),
-     t.test(value ~ stimulation, paired=T))
+add_criterion(mod.pfc.test, criterion = c("loo", "bayes_R2")) -> mod.pfc.test
+loo_compare(mod.pfc.mw2, mod.pfc.test)
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+
+##' Quantify differences using the Bayesian regression models     =====
+pfc |>
+  select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
+  group_by(subj,block,stimulation) |>
+  summarize(MW1=mean(as.numeric(MW1)), MW2=mean(as.numeric(MW2)), MW3=mean(as.numeric(MW3)),
+            AE=mean(AE), BV=mean(BV)) |>
+  mutate(stimulation = factor(stimulation, levels=c("sham", "real"))) -> pfc_data_rdy
+## Mind wandering         =====
+### Not baseline corrected!     ======
+
+#### Full model  (BV*AE)          =====
+mod.pfc.mw.behav <- brm(probe1 ~ stimulation + block*stimulation + zlogapen * zlogbv + scale(proberound) + (1|subj), 
+                        init=0, family=cumulative("probit"), data=pfc, 
+                        backend = "cmdstanr", chains = 6, iter=3000)
+bayes_plot(mod.pfc.mw.behav) + labs(title="Full model") -> p_mw1
+p_mw1
+
+# Add LOO criteria 
+mod.pfc.mw |> add_criterion(criterion = c("loo","bayes_R2")) -> mod.pfc.mw
+# compare LOO 
+loo_compare(mod.pfc.mw.behav, mod.pfc.mw) 
+
+
 
 
 
