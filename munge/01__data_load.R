@@ -23,4 +23,4 @@ raw_data |>
             mprobe3=mean(as.integer(response[stimulus=="probe3"])))
 
 ## Save file                                                     #####
-save(raw_pfc_data, file = "data/export/raw_data.Rdata")
+save(raw_data, file = "data/export/raw_data.Rdata")
