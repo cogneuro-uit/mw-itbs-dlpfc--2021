@@ -8,6 +8,14 @@ library(bayesplot)
 library(cmdstanr)
 library(tidybayes)
 
+# Toggle: 
+load_bayesian_data <- TRUE 
+  #' TRUE will load the saved Bayesian models in (paper_vars) 
+  #' FALSE will NOT load any Bayesian models, and will therefore RUN all Bayesian models. 
+
+
+
+
 # Bayesian plotting function
 bayes_plot <- function( data_list, variables = NULL ){
   int <- variables(data_list)[str_detect(variables(data_list), "Intercept")]
@@ -146,7 +154,7 @@ pfc |>
   mutate(variable=fct_recode(variable, AE="ae",BV="bv",MW="mw"),
          variable=factor(variable, levels=c("MW","BV","AE"))) -> pfc_t
 
-###  MW, BV and AE         ======
+###  MW, BV and AE          ======
 pfc_t |>
   mutate(variable=fct_recode(variable, `Approximate Entropy`="AE",
                              `Behavioural Variability`="BV", `Mind Wandering`="MW"),
@@ -221,236 +229,118 @@ data.probe.cond.diff4 |>
 ggsave(filename ="figs/prereg/descriptive_MB-SMW+block+stim-v2.svg", dpi = 300, width=6, height=3.5)
 
 
-# Bayesian models   ======
+# Bayesian models     ======
+if(!load_bayesian_data){
+    
+  ## MW           =====
+  mod.pfc.mw <- brm(probe1 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
+                    init=0, family=cumulative("probit"), data=pfc, 
+                    backend = "cmdstanr", chains = 6, iter=3000)
+  bayes_plot(mod.pfc.mw)+ labs(title="Full -AE&BE")
+  summary(mod.pfc.mw)
+  
+  
+  ## AE           ======
+  mod.pfc.ae <- brm(zlogapen ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
+                    init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
+  bayes_plot(mod.pfc.ae, "sigma")
+  summary(mod.pfc.ae)
+  
+  
+  ## BV           ======
+  mod.pfc.bv <- brm(zlogbv ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
+                    init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
+  bayes_plot(mod.pfc.bv, "sigma")
+  summary(mod.pfc.bv)
+  
+  
+  ## MB           =====
+  # For these latter probe (MB, SMW), we ignore the responses that were not preceeded by mind wandering.
+  pfc |> 
+    filter(probe1 > 2) -> dd
+  
+  mod.pfc.mb <- brm(probe2 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
+                   init=0, data=dd, family=cumulative(link="probit"), cores=6, 
+                   backend = "cmdstanr", chains = 6, iter=3000)
+  bayes_plot(mod.pfc.mb)
+  summary(mod.pfc.mb)
+  
+  
+  ## SMW          =====
+  mod.pfc.smw <- brm(probe3 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
+                   init=0, data=dd, family=cumulative(link="probit"),  
+                   backend = "cmdstanr", chains = 6, iter=3000)
+  bayes_plot(mod.pfc.smw)
+  summary(mod.pfc.smw)
+  
+  
+  ## LOO criteria & save data ====
+  mod.pfc.mw  <- brms::add_criterion(mod.pfc.mw,  criterion = c("bayes_R2", "loo"))
+  mod.pfc.ae  <- brms::add_criterion(mod.pfc.ae,  criterion = c("bayes_R2", "loo"))
+  mod.pfc.bv  <- brms::add_criterion(mod.pfc.bv,  criterion = c("bayes_R2", "loo"))
+  mod.pfc.mb  <- brms::add_criterion(mod.pfc.mb,  criterion = c("bayes_R2", "loo"))
+  mod.pfc.smw <- brms::add_criterion(mod.pfc.smw, criterion = c("bayes_R2", "loo"))
+  save(mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, file="data/export/paper_vars.RData")
+}
 
-## MW           =====
-mod.pfc.mw <- brm(probe1 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
-                  init=0, family=cumulative("probit"), data=pfc, 
-                  backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.mw)+ labs(title="Full -AE&BE")
-summary(mod.pfc.mw)
-
-
-## AE           ======
-mod.pfc.ae <- brm(zlogapen ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
-                  init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.ae, "sigma")
-summary(mod.pfc.ae)
-
-
-## BV           ======
-mod.pfc.bv <- brm(zlogbv ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
-                  init=0, data=pfc, backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.bv, "sigma")
-summary(mod.pfc.bv)
-
-
-## MB      =====
-# For these latter probe (MB, SMW), we ignore the responses that were not preceeded by mind wandering.
-pfc |> 
-  filter(probe1 > 2) -> dd
-
-mod.pfc.mb <- brm(probe2 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
-                 init=0, data=dd, family=cumulative(link="probit"), cores=6, 
-                 backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.mb)
-summary(mod.pfc.mb)
-
-
-## SMW    =====
-mod.pfc.smw <- brm(probe3 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
-                 init=0, data=dd, family=cumulative(link="probit"),  
-                 backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.smw)
-summary(mod.pfc.smw)
-
-
-## LOO criteria & save data ====
-mod.pfc.mw  <- brms::add_criterion(mod.pfc.mw,  criterion = c("bayes_R2", "loo"))
-mod.pfc.ae  <- brms::add_criterion(mod.pfc.ae,  criterion = c("bayes_R2", "loo"))
-mod.pfc.bv  <- brms::add_criterion(mod.pfc.bv,  criterion = c("bayes_R2", "loo"))
-mod.pfc.mb  <- brms::add_criterion(mod.pfc.mb,  criterion = c("bayes_R2", "loo"))
-mod.pfc.smw <- brms::add_criterion(mod.pfc.smw, criterion = c("bayes_R2", "loo"))
-
-save(mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, file="data/export/paper_vars.RData")
-load("data/export/paper_vars.RData")
-
+if(load_bayesian_data){
+ load("data/export/paper_vars.RData")
+}
 
 
 # Other         =====
-# not analysis
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-# WITH  BV & AE
-mod.pfc.test <- brm(probe1 ~ zlogbv * zlogapen + 
-                      blockB1 + blockB1:stimulation + 
-                      blockB2 + blockB2:stimulation + 
-                      blockB3 + blockB3:stimulation + 
-                      zproberound + (1|subj),  data=pfc_t,
-                    init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.test)
-
-add_criterion(mod.pfc.test, criterion = c("loo", "bayes_R2")) -> mod.pfc.test
-loo_compare(mod.pfc.mw2, mod.pfc.test)
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-
-
-##' Quantify differences using the Bayesian regression models     =====
-pfc |>
-  select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
-  group_by(subj,block,stimulation) |>
-  summarize(MW1=mean(as.numeric(MW1)), MW2=mean(as.numeric(MW2)), MW3=mean(as.numeric(MW3)),
-            AE=mean(AE), BV=mean(BV)) |>
-  mutate(stimulation = factor(stimulation, levels=c("sham", "real"))) -> pfc_data_rdy
-## Mind wandering         =====
-### Not baseline corrected!     ======
-
-#### Full model  (BV*AE)          =====
-mod.pfc.mw.behav <- brm(probe1 ~ stimulation + block*stimulation + zlogapen * zlogbv + scale(proberound) + (1|subj), 
-                        init=0, family=cumulative("probit"), data=pfc, 
-                        backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.mw.behav) + labs(title="Full model") -> p_mw1
-p_mw1
-
-# Add LOO criteria 
-mod.pfc.mw |> add_criterion(criterion = c("loo","bayes_R2")) -> mod.pfc.mw
-# compare LOO 
-loo_compare(mod.pfc.mw.behav, mod.pfc.mw) 
-
-
-
-
-
-### Plot of the models     =====
-### Model with BV       =====
-as.data.frame(mod.pfc.mw_no_ae) |> 
-  select(starts_with("b_block"), starts_with("b_stimulation")) |> 
-  mutate(B0_mw_sham=0,
-         B0_mw_real=0, # b_stimulationreal, 
-         # This should also be 0? Correct?
-         # participants were NOT stimulated on the baseline 
-         B1_mw_sham=b_blockB1,
-         B1_mw_real=b_blockB1+`b_stimulationreal:blockB1`,
-         B2_mw_sham=b_blockB2,
-         B2_mw_real=b_blockB2+`b_stimulationreal:blockB2`,
-         B3_mw_sham=b_blockB3,
-         B3_mw_real=b_blockB3+`b_stimulationreal:blockB3`) |> 
-  select(starts_with("B", ignore.case=F)) |>
-  gather(var,val) |>
-  separate(var, c("block","var","stimulation"), sep="_") |>
-  ggplot(aes(x=block, y=val, color=stimulation))+
-  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
-  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  labs(title="MW3: Stim*block + BV") -> bPlot1
-
-
-
-#### Stim*block model    =====
+## Visualize Bayesian models           =====
+###  MW, BV & AE                =====
 as.data.frame(mod.pfc.mw) |> 
-  select(starts_with("b_block"), starts_with("b_stimulation")) |> 
-  mutate(B0_mw_sham=0,
-         B0_mw_real=0, # b_stimulationreal, 
-          # This should also be 0? Correct?
-          # participants were NOT stimulated on the baseline 
-         B1_mw_sham=b_blockB1,
-         B1_mw_real=b_blockB1+`b_stimulationreal:blockB1`,
-         B2_mw_sham=b_blockB2,
-         B2_mw_real=b_blockB2+`b_stimulationreal:blockB2`,
-         B3_mw_sham=b_blockB3,
-         B3_mw_real=b_blockB3+`b_stimulationreal:blockB3`) |> 
-  select(starts_with("B", ignore.case=F)) |>
-  gather(var,val) |>
-  separate(var, c("block","var","stimulation"), sep="_") |>
-  ggplot(aes(x=block, y=val, color=stimulation))+
-  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
-  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  labs(x = "Block", y = "") -> bPlot2
-
-
-
-#### common baseline model     ======
-as.data.frame(mod.pfc.mw2) |> 
-  select(starts_with("b_block"), starts_with("b_stimulation")) |> 
-  mutate(B0_mw_sham=0,
-         B0_mw_real=0, 
-         B1_mw_sham=b_blockB1, 
-         B1_mw_real=b_blockB1+`b_blockB1:stimulationreal`, 
-         B2_mw_sham=b_blockB2,
-         B2_mw_real=b_blockB2+`b_blockB2:stimulationreal`,
-         B3_mw_sham=b_blockB3,
-         B3_mw_real=b_blockB3+`b_blockB3:stimulationreal`) |> 
-  select(starts_with("B", ignore.case=F)) |>
-  gather(var,val) |>
-  separate(var, c("block","var","stimulation"), sep="_") |>
-  ggplot(aes(x=block, y=val, color=stimulation))+
-  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
-  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  scale_y_continuous(breaks = seq(-1,1,0.1)) + 
-  labs(x="", y = "Z-score value") + 
-  theme(legend.position = "none") -> bPlot3  # title="MW5: Common baseline") -> bPlot3
-         
-bPlot1+bPlot2+bPlot3
-ggsave("figs/three_bayes_models.png", width=12, heigh=4)
-
-
-
-
-
-
-##  MW, BV, AE model plot        =====
-as.data.frame(mod.pfc.mw2) |> 
   select(starts_with("b_block"), starts_with("b_stimulation")) |> 
   rename_with(~paste0("mw_", .x)) |> 
   # combine:
   cbind( as.data.frame(mod.pfc.bv) |> 
            select(starts_with("b_block"), starts_with("b_stimulation")) |>
-           rename_with(~paste0("bv_", .x)) ) |>
-  cbind( as.data.frame(mod.pfc.ae) |>
-           select(starts_with("b_block"), starts_with("b_stimulation")) |> 
-           rename_with(~paste0("ae_", .x)) )  |> #View()
+           rename_with(~paste0("bv_", .x)) ) |> 
+  cbind( as.data.frame(mod.pfc.ae) |> 
+           select(starts_with("b_block"), starts_with("b_stimulation")) |>
+           rename_with(~paste0("ae_", .x)) ) |>
   # Transform
-  mutate(B0_mw_sham=0,
-         B0_mw_real=0,
-         B1_mw_sham=mw_b_blockB1,
-         B1_mw_real=mw_b_blockB1+`mw_b_blockB1:stimulationreal`,
-         B2_mw_sham=mw_b_blockB2,
-         B2_mw_real=mw_b_blockB2+`mw_b_blockB2:stimulationreal`,
-         B3_mw_sham=mw_b_blockB3,
-         B3_mw_real=mw_b_blockB3+`mw_b_blockB3:stimulationreal`) |>
-  mutate(B0_bv_sham=0,
-         B0_bv_real=0,
-         B1_bv_sham=bv_b_blockB1,
-         B1_bv_real=bv_b_blockB1+`bv_b_stimulationreal:blockB1`,
-         B2_bv_sham=bv_b_blockB2,
-         B2_bv_real=bv_b_blockB2+`bv_b_stimulationreal:blockB2`,
-         B3_bv_sham=bv_b_blockB3,
-         B3_bv_real=bv_b_blockB3+`bv_b_stimulationreal:blockB3`) |>
-  mutate(B0_ae_sham=0,
-         B0_ae_real=0,
-         B1_ae_sham=ae_b_blockB1,
-         B1_ae_real=ae_b_blockB1+`ae_b_stimulationreal:blockB1`,
-         B2_ae_sham=ae_b_blockB2,
-         B2_ae_real=ae_b_blockB2+`ae_b_stimulationreal:blockB2`,
-         B3_ae_sham=ae_b_blockB3,
-         B3_ae_real=ae_b_blockB3+`ae_b_stimulationreal:blockB3`) |>
+  mutate(B0_mw_sham = 0,
+         B0_mw_real = 0,
+         B1_mw_sham = mw_b_blockB1,
+         B1_mw_real = mw_b_blockB1+`mw_b_stimulationreal:blockB1`,
+         B2_mw_sham = mw_b_blockB2,
+         B2_mw_real = mw_b_blockB2+`mw_b_stimulationreal:blockB2`,
+         B3_mw_sham = mw_b_blockB3,
+         B3_mw_real = mw_b_blockB3+`mw_b_stimulationreal:blockB3`) |>
+  mutate(B0_bv_sham = 0,
+         B0_bv_real = 0,
+         B1_bv_sham = bv_b_blockB1,
+         B1_bv_real = bv_b_blockB1+`bv_b_stimulationreal:blockB1`,
+         B2_bv_sham = bv_b_blockB2,
+         B2_bv_real = bv_b_blockB2+`bv_b_stimulationreal:blockB2`,
+         B3_bv_sham = bv_b_blockB3,
+         B3_bv_real = bv_b_blockB3+`bv_b_stimulationreal:blockB3`) |>
+  mutate(B0_ae_sham = 0,
+         B0_ae_real = 0,
+         B1_ae_sham = ae_b_blockB1,
+         B1_ae_real = ae_b_blockB1+`ae_b_stimulationreal:blockB1`,
+         B2_ae_sham = ae_b_blockB2,
+         B2_ae_real = ae_b_blockB2+`ae_b_stimulationreal:blockB2`,
+         B3_ae_sham = ae_b_blockB3,
+         B3_ae_real = ae_b_blockB3+`ae_b_stimulationreal:blockB3`) 
   select(starts_with("B", ignore.case = F)) |>
-  #gather(var, val) 
   pivot_longer( everything() ) |>
   separate_wider_delim(name, delim = "_", names = c("block", "var", "stimulation")) |>
-  mutate(var = case_when(var == "mw"~"MW",
-                         var == "bv"~"BV",
-                         var == "ae"~"AE"),
+  mutate(var = case_when(var == "mw" ~ "MW",
+                         var == "bv" ~ "BV",
+                         var == "ae" ~ "AE",),
          var = factor(var, levels = c("MW", "BV", "AE")),
-         stimulation = factor( stimulation, levels = c("sham", "real"))) |>
-  ggplot(aes( x = block, y = value, color = stimulation ))+
-  geom_hline(yintercept=0, linetype = "dashed") +
-  labs(y  = "") +
-  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
+         stimulation = factor( stimulation, levels = c("sham", "real")))  |>
+  ggplot(aes( x = block, y = value, color = stimulation )) +
   stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
+  stat_summary(fun.data = median_hdi, geom="pointrange", position=position_dodge(width=0.2)) 
+geom_hline(yintercept=0, linetype = "dashed") +
   scale_y_continuous( breaks = seq(-1,1, 0.1) ) +
-  facet_wrap( ~ var )
-ggsave("figs/prereg/bayesian-model_MW-BV-AE+block+stim.png", dpi=300, width=10, height=4)
+  facet_wrap( ~ var ) +
+  labs(y  = "", title = "b)")
 
 
 ##    MB & SMW        =====
@@ -494,3 +384,101 @@ as.data.frame(mod.pfc.mb) |>
   scale_y_continuous( breaks = seq(-1,1, 0.1) ) +
   facet_wrap( ~ var )
 ggsave("figs/prereg/bayesian-model_MB-SMW+block+stim.png", dpi=300, width=6, height=4)
+
+
+
+
+
+# WITH  BV & AE
+mod.pfc.test <- brm(probe1 ~ zlogbv * zlogapen + 
+                      blockB1 + blockB1:stimulation + 
+                      blockB2 + blockB2:stimulation + 
+                      blockB3 + blockB3:stimulation + 
+                      zproberound + (1|subj),  data=pfc_t,
+                    init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
+bayes_plot(mod.pfc.test)
+
+add_criterion(mod.pfc.test, criterion = c("loo", "bayes_R2")) -> mod.pfc.test
+loo_compare(mod.pfc.mw2, mod.pfc.test)
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+
+
+##' Quantify differences using the Bayesian regression models     =====
+pfc |>
+  select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
+  group_by(subj,block,stimulation) |>
+  summarize(MW1=mean(as.numeric(MW1)), MW2=mean(as.numeric(MW2)), MW3=mean(as.numeric(MW3)),
+            AE=mean(AE), BV=mean(BV)) |>
+  mutate(stimulation = factor(stimulation, levels=c("sham", "real"))) -> pfc_data_rdy
+
+
+## other models =====
+
+
+as.data.frame(mod.pfc.mw) |> 
+  select(starts_with("b_block"), starts_with("b_stimulation")) |> 
+  mutate(B0_mw_sham=0,
+         B0_mw_real=0, 
+         B1_mw_sham=b_blockB1, 
+         B1_mw_real=b_blockB1+`b_stimulationreal:blockB1`, 
+         B2_mw_sham=b_blockB2,
+         B2_mw_real=b_blockB2+`b_stimulationreal:blockB2`,
+         B3_mw_sham=b_blockB3,
+         B3_mw_real=b_blockB3+`b_stimulationreal:blockB3`) |> 
+  select(starts_with("B", ignore.case=F)) |>
+  gather(var,val) |>
+  separate(var, c("block","var","stimulation"), sep="_") |>
+  ggplot(aes(x=block, y=val, color=stimulation))+
+  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
+  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
+  scale_y_continuous(breaks = seq(-1,1,0.1)) + 
+  labs(x="", y = "Z-score value") + 
+  theme(legend.position = "none") -> bPlot3  # title="MW5: Common baseline") -> bPlot3
+
+### BV                  ======
+
+as.data.frame(mod.pfc.mw_no_ae) |> 
+  select(starts_with("b_block"), starts_with("b_stimulation")) |> 
+  mutate(B0_mw_sham=0,
+         B0_mw_real=0, # b_stimulationreal, 
+         B1_mw_sham=b_blockB1,
+         B1_mw_real=b_blockB1+`b_stimulationreal:blockB1`,
+         B2_mw_sham=b_blockB2,
+         B2_mw_real=b_blockB2+`b_stimulationreal:blockB2`,
+         B3_mw_sham=b_blockB3,
+         B3_mw_real=b_blockB3+`b_stimulationreal:blockB3`) |> 
+  select(starts_with("B", ignore.case=F)) |>
+  gather(var,val) |>
+  separate(var, c("block","var","stimulation"), sep="_") |>
+  ggplot(aes(x=block, y=val, color=stimulation))+
+  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
+  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
+  labs(title="MW3: Stim*block + BV") -> bPlot1
+
+
+#### Stim*block model    =====
+as.data.frame(mod.pfc.mw) |> 
+  select(starts_with("b_block"), starts_with("b_stimulation")) |> 
+  mutate(B0_mw_sham=0,
+         B0_mw_real=0, # b_stimulationreal, 
+         B1_mw_sham=b_blockB1,
+         B1_mw_real=b_blockB1+`b_stimulationreal:blockB1`,
+         B2_mw_sham=b_blockB2,
+         B2_mw_real=b_blockB2+`b_stimulationreal:blockB2`,
+         B3_mw_sham=b_blockB3,
+         B3_mw_real=b_blockB3+`b_stimulationreal:blockB3`) |> 
+  select(starts_with("B", ignore.case=F)) |>
+  gather(var,val) |>
+  separate(var, c("block","var","stimulation"), sep="_") |>
+  ggplot(aes(x=block, y=val, color=stimulation))+
+  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
+  stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
+  labs(x = "Block", y = "") -> bPlot2
+
+
+### Gathered plot           ======
+bPlot1+bPlot2+bPlot3
+ggsave("figs/three_bayes_models.png", width=12, heigh=4)
+
