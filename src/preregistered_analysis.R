@@ -84,21 +84,63 @@ pfc_anova_data |>
   pivot_wider(names_from = c(stimulation, block), values_from = c(MW1, MW2, MW3, AE, BV)) -> pfc_anova_data2
 write_csv(pfc_anova_data2, file="data/pfc_anova.csv")
 
+
 # Results from these functions seems to correspond to JASP
-aov(MW1 ~ block*stimulation + Error(subj/(block*stimulation)), 
-                            # Within subject
-    data=pfc_anova_data) |> summary()
-  # Block & stim
+afex::aov_car(MW1 ~ block * stimulation  + Error(subj/(block*stimulation)), 
+              pfc_anova_data) -> aov_mw
+anova(aov_mw, es="pes")
+aov_mw |> summary() 
+  # sphericity not met for block
 
-aov(AE ~ block * stimulation + Error(subj/(block*stimulation)), 
-    data=pfc_anova_data) |> summary()
-  # sig block
+afex::aov_car(BV ~ block*stimulation + Error(subj/(block*stimulation)), 
+              pfc_anova_data)  -> aov_bv
+anova(aov_bv, es="pes")
+aov_bv |> summary()
 
-aov(BV ~ block * stimulation + Error(subj/(block*stimulation)), 
-    data=pfc_anova_data) |> summary()
-  # nothing
+afex::aov_car(AE ~ block*stimulation + Error(subj/(block*stimulation)), 
+              pfc_anova_data)  -> aov_ae
+anova(aov_ae, es="pes")
+aov_ae |> summary()
+
 #' No interaction between block and stimulation was found. We therefore do not do
 #' the contrast analysis.  
+
+pfc_anova_data |>
+  summarise(
+    .by = c(stimulation, block),
+    MW_m = mean(MW1),
+    MW_sd = sd(MW1),
+    BV_m = mean(BV),
+    BV_sd = sd(BV),
+    AE_m = mean(AE),
+    AE_sd = sd(AE)
+  ) |>
+  mutate(
+    across(contains("_"), ~fmt_APA_numbers(.x, .chr=T))
+  ) |> 
+  pivot_wider(names_from = stimulation, values_from=ends_with(c("_m","_sd"))) |>
+  mutate(e="",e2="",e3="",e4="", e5="",e6="") |>
+  gt() |>
+  cols_move(ends_with("sham"), after = 1) |>
+  tab_spanner("MW", c(starts_with("MW") & ends_with("sham"))) |>
+  tab_spanner("BV", c(starts_with("BV") & ends_with("sham"))) |>
+  tab_spanner("AE", c(starts_with("AE") & ends_with("sham"))) |>
+  tab_spanner("MW ", c(starts_with("MW") & ends_with("real"))) |>
+  tab_spanner("BV ", c(starts_with("BV") & ends_with("real"))) |>
+  tab_spanner("AE ", c(starts_with("AE") & ends_with("real"))) |>
+  tab_spanner("Sham", c(ends_with("_sham"), e,e2,e3)) |>
+  tab_spanner("Real", c(ends_with("_real"), e4,e5,e6)) |>
+  cols_label(
+    contains("_m_") ~ md("*M*"),
+    contains("_sd_") ~ md("*SD*"),
+    starts_with("e") ~ ""
+  ) |> cols_move(e, MW_sd_sham) |> 
+  cols_move(e2, BV_sd_sham) |>
+  cols_move(e3, AE_sd_sham) |>
+  cols_move(e4, MW_sd_real) |>
+  cols_move(e5, BV_sd_real) |>
+  cols_move(e6, AE_sd_real) 
+  gtsave("tables/anova_descriptives.docx")
 
 ##  Contrasts     =====
 # Note. We do not report these.  
