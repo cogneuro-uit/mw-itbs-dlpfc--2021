@@ -151,7 +151,8 @@ if(save_tables){
   gtsave(guess_table_d, "tables/Blinding_Guesses_for_Participants_and_Researchers.docx")  
 }
 
-#### Stat tests         ======
+#### Statistic         ======
+##### Frequent      ======
 demo_pfc |>
   select(contains("FB_stimulation"), contains("researcher"),subj, -contains("conf"))  |>
   mutate(across(everything(), as.integer)) |>
@@ -173,6 +174,40 @@ demo_pfc |>
     chisq_p  = chisq.test(value, true_stim)$p.value,
     fisher_p = fisher.test(value, true_stim)$p.value,
   )
+
+##### Bayesian ======
+# stim guesses      =====
+# Fit a Bayesian Poisson model to the observed counts
+b_guess_data <- 
+  demo_pfc |>
+  select(subj, S1_FB_stimulation, S2_FB_stimulation, true_stim1, true_stim2, 
+         S1_Researcher_stim, S2_Researcher_stim) |>
+  pivot_longer(c(starts_with("S1"),starts_with("S2"))) |>
+  mutate(
+    split = str_split(name, "_"), 
+    session = map_chr(split, 1),
+    pers = ifelse(map_chr(split, 2)=="Researcher", "Researcher", "Participant"),
+    true_stim = ifelse(session=="S1", true_stim1, true_stim2),
+    pred_stim = as.integer(value)
+  ) |>
+  select(-true_stim1, -true_stim2, -name, -value, -split)
+
+map(c("Participant", "Researcher"), \(per){
+  map(c("S1","S2"), \(sess){
+    b_guess_data |>
+      filter(pers == per & session == sess) -> d
+    
+    tibble(
+      pers = per,
+      session = sess,
+      bf = extractBF(
+        contingencyTableBF(
+          table(d[["pred_stim"]], d[["true_stim"]]), sampleType = "jointMulti"
+        )
+      )[["bf"]]
+    )
+  }) |> list_rbind()
+}) |> list_rbind()
 
 ### Confidence in guesses       ======
 # Fetch confidence values
