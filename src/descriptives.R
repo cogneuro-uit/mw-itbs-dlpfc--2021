@@ -48,13 +48,12 @@ demo_pfc |>
   geom_bar()
 
 
-## Feedback      ======
-###  TMS expectation       ========
-#### Descriptives         =====
-names(demo_pfc)
-demo_pfc |>
-  select(contains("_expectation")) |> 
-  mutate(n = 1:40) |>
+# Feedback      ======
+##  TMS expectation       ========
+### Descriptives         =====
+stimulation_expectation <- 
+  demo_pfc |>
+  select(subj, contains("_expectation")) |> 
   pivot_longer(contains("expectation")) |>
   summarise(
     .by = name, 
@@ -71,18 +70,11 @@ demo_pfc |>
   gt() |>
   cols_move(n, after ="Session 1") |>
   cols_label(n = "") -> stimulation_expectation
-stimulation_expectation
 if(save_tables){
   gtsave(stimulation_expectation, "tables/Stimulation_Expectation.docx")
 }
-#### Test         ======
 
-
-
-
-
-
-### Guesses     ======
+## Guesses     ======
 # Fetch the values
 guess_table <- demo_pfc |>
   select(contains("FB_stimulation"), contains("researcher"),subj, -contains("conf")) |>
@@ -109,7 +101,7 @@ guess_table <- demo_pfc |>
   select(s, true_stim, val0_Participant, val1_Participant, val0_Researcher, val1_Researcher)
 guess_table
 
-# GT it
+# Create the table
 guess_table_d <- 
   guess_table |>
   add_row(
@@ -151,8 +143,8 @@ if(save_tables){
   gtsave(guess_table_d, "tables/Blinding_Guesses_for_Participants_and_Researchers.docx")  
 }
 
-#### Statistic         ======
-##### Frequent      ======
+### Statistic         ======
+#### Frequent      ======
 demo_pfc |>
   select(contains("FB_stimulation"), contains("researcher"),subj, -contains("conf"))  |>
   mutate(across(everything(), as.integer)) |>
@@ -175,8 +167,7 @@ demo_pfc |>
     fisher_p = fisher.test(value, true_stim)$p.value,
   )
 
-##### Bayesian ======
-# stim guesses      =====
+#### Bayesian ======
 # Fit a Bayesian Poisson model to the observed counts
 b_guess_data <- 
   demo_pfc |>
@@ -209,7 +200,7 @@ map(c("Participant", "Researcher"), \(per){
   }) |> list_rbind()
 }) |> list_rbind()
 
-### Confidence in guesses       ======
+## Confidence in guesses       ======
 # Fetch confidence values
 demo_pfc |> 
   select(contains("conf"), subj, -contains("_task_")) |>
@@ -230,7 +221,7 @@ demo_pfc |>
   ) -> r_p_conf
     
 
-#### Descriptives       =====
+### Descriptives       =====
 # Mean confidence rating across participant and researcher for real and sham. 
 r_p_conf |>
   select(-name) |>
@@ -257,98 +248,75 @@ r_p_conf |>
   ) |>
   cols_move(e1, sd_Participant_0) |>
   cols_move(e2, sd_Participant_1) |>
-  cols_move(e3, sd_Researcher_0) |>
-  gtsave("tables/confidence_in_guesses.docx")
+  cols_move(e3, sd_Researcher_0) 
+  # |> gtsave("tables/confidence_in_guesses.docx")
 
+### Tests       =====
+#### Real vs. sham (sess & res)     ====
+r_p_conf |>
+  select(-name) |>
+  summarise(
+    .by = c(session, res),
+    r_m = mean(value[true_stim==1]),
+    r_sd = sd(value[true_stim==1]),
+    s_m = mean(value[true_stim==0]),
+    s_sd = sd(value[true_stim==0]),
+    dif = mean(value[true_stim==1] - value[true_stim==0]),
+    t = t.test(value[true_stim==1], value[true_stim==0], paired = T)$statistic,
+    df = t.test(value[true_stim==1], value[true_stim==0], paired = T)$parameter,
+    p = t.test(value[true_stim==1], value[true_stim==0], paired = T)$p.value,
+  ) |>
+  mutate( p.adj = p.adjust(p, "bonferroni") )
 
-#### Between session        ======
+#### S1 v. S2 (stim, res)        =====
+r_p_conf |>
+  select(-name) |>
+  summarise(
+    .by = c(true_stim,res),
+    s2_m = mean(value[session=="S2"]),
+    s2_sd = sd(value[session=="S2"]),
+    s1_m = mean(value[session=="S1"]),
+    s1_sd = sd(value[session=="S1"]),
+    dif = mean(value[session=="S2"] - value[session=="S1"]),
+    t = t.test(value[session=="S2"], value[session=="S1"], paired = T)$statistic,
+    df = t.test(value[session=="S2"], value[session=="S1"], paired = T)$parameter,
+    p = t.test(value[session=="S2"], value[session=="S1"], paired = T)$p.value,
+  ) |> mutate( p.adj = p.adjust(p, "bonferroni") )
+
+#### S1 v. S2 (pers)        ======
 r_p_conf |>
   select(-name, -true_stim) |> 
   pivot_wider(names_from = c(session), values_from=value) |>
   summarise(
     .by = res,
-    m = mean(S2 - S1, na.rm=T),
-    sd = sd(S2 - S1, na.rm=T),
+    s1_m = mean(S1),
+    s1_sd = sd(S1),
+    s2_m = mean(S2),
+    s2_sd = sd(S2),
+    dif = mean(S2 - S1, na.rm=T),
     t = t.test(S2, S1, paired = T)$statistic,
     df = t.test(S2, S1, paired = T)$parameter,
     p = t.test(S2, S1, paired = T)$p.value,
-  )
+  ) |> mutate(p.adj = p.adjust(p, "bonferroni") )
   # INCREASED OVER SESSION
 
-
-#### Between true/false         =====
+#### Real v. sham (pers)         =====
 r_p_conf |>
   select(-name, -session) |>
   pivot_wider(names_from=true_stim, values_from = value) |>
   summarise(
     .by = res,
-    m = mean(`1` - `0`, na.rm=T),
-    sd = sd(`1` - `0`, na.rm=T),
+    s_m = mean(`0`),
+    s_sd = sd(`0`),
+    r_m = mean(`1`),
+    r_sd = sd(`1`),
+    dif = mean(`1` - `0`, na.rm=T),
     t = t.test(`1`, `0`, paired = T)$statistic,
     df = t.test(`1`, `0`, paired = T)$parameter,
     p = t.test(`1`, `0`, paired = T)$p.value,
-  )
+  ) |> mutate(p.adj = p.adjust(p, "bonferroni") )
 
-
-
-
-# 
-# # GT it
-# guess_table_confidence <- 
-#   guess_table |> 
-#   add_row(
-#     guess_table |> 
-#       pivot_longer(contains("val")) |>
-#       summarise(
-#         .by = c(s, name),
-#         sum = sum(value)
-#       ) |>
-#       pivot_wider(names_from = name, values_from = sum) |>
-#       mutate(true_stim=c(3,3))
-#   ) |>
-#   mutate(
-#     par_sum = val0_Participant+val1_Participant,
-#     res_sum = val0_Researcher+val1_Researcher,) |>
-#   bind_rows(
-#     confidence_in_guess |>   
-#       rename(val0_Participant = Participant_0, val1_Participant = Participant_1, 
-#              val0_Researcher = Researcher_0, val1_Researcher = Researcher_1,
-#              s = session)
-#   ) |>
-#   mutate(true_stim = ifelse(is.na(true_stim), 4, true_stim)) |>
-#   arrange(s, true_stim) |>
-#   mutate(
-#     true_stim = case_when(
-#       true_stim==0~"False", 
-#       true_stim==1~"True", 
-#       true_stim==3~"Total", 
-#       true_stim==4~"Confidence"),
-#       b="",
-#     across(where(is.numeric), ~fmt_APA_numbers(.x, .chr = T) ),
-#     par_sum=ifelse(is.na(par_sum), "", par_sum),
-#     res_sum=ifelse(is.na(res_sum), "", res_sum)
-#   ) |>
-#   gt() |>
-#   tab_spanner("Participants",
-#               c(val0_Participant,val1_Participant, par_sum) )|>
-#   tab_spanner("Researcher", 
-#               c(val0_Researcher, val1_Researcher, res_sum)) |>
-#   tab_spanner("True state", c(s, true_stim)) |>
-#   cols_label( val0_Participant = "False",
-#               val1_Participant = "True",
-#               val0_Researcher = "False", 
-#               val1_Researcher = "True", 
-#               b = "", s = "", true_stim="",
-#               par_sum="Total", res_sum="Total") |>
-#   cols_move(b, par_sum)
-#   
-# guess_table_confidence
-# if(save_tables){
-#   gtsave(guess_table_confidence, "tables/Blinding_Guesses_for_Participants_and_Researchers_and_Confidence.docx")  
-# }
-
-
-### Change prediction?       ======
+## Change prediction?       ======
 demo_pfc |>
   select(S2_FB_change_answer) |> 
   summarise(
@@ -357,7 +325,7 @@ demo_pfc |>
     `Yes`      = sum(S2_FB_change_answer==1, na.rm=T),
   )
 
-#### test the changes      ====
+### test the changes      ====
 demo_pfc |>
   select(contains("stimulation"), -contains("confidence"), contains("true_stim"), S2_FB_change_answer) |>
   mutate(across(where(is.numeric), as.integer),
@@ -365,16 +333,26 @@ demo_pfc |>
            S2_FB_change_answer==3 & S1_FB_stimulation == 1 ~ 0,
            S2_FB_change_answer==3 & S1_FB_stimulation == 0 ~ 1,
            T ~ S1_FB_stimulation
-         )) |>
+         )) -> change_guesses
+# freq
+change_guesses |>
   summarise(
     f.p = fisher.test(S1_FB_stimulation, true_stim1)$p.value,
     chi.t = chisq.test(S1_FB_stimulation, true_stim1)$statistic,
     chi.p = fisher.test(S1_FB_stimulation, true_stim1)$p.value,
   )
+# bayes
+extractBF(
+  contingencyTableBF(
+    table(change_guesses$S1_FB_stimulation, change_guesses$true_stim1),
+    sampleType = "jointMulti"
+  )
+)[["bf"]]
 
 
 
-## Tired, motivation, conf, tracker     =====
+# Descriptives - Tired, motivation, conf, tracker     =====
+# prepare data: 
 data_fb_coll <- 
   demo_pfc |> 
   select(subj, S1_FB_task_confidence, S2_FB_task_confidence, 
@@ -395,7 +373,12 @@ data_fb_coll <-
     session = str_split(name, "_") |> map_chr(1),
     stim = ifelse(session=="S1", true_stim1, true_stim2)
   ) |>  ungroup()  |>
-  mutate(names = ifelse(names=="task confidence", "attention confidence", names)) |>
+  mutate(names = case_when(
+    names=="task confidence" ~ "Attention confidence",
+    names=="motivation" ~ "Randomness motivation", 
+    names=="subject tracker" ~ "Subject tracker", 
+    T~names
+  )) |>
   select(-name, - split, -true_stim1, -true_stim2) 
 
 combined_fb_data <- 
@@ -413,7 +396,7 @@ combined_fb_data <-
             by = join_by(subj2==subj, stimulation==stimu)) |>
   mutate(stimulation = factor(stimulation, levels = c("sham","real")))
   
-### Test between conditions       =====
+## Test - conditions       =====
 combined_fb_data |>
   summarise(
     .by = names,
@@ -425,13 +408,57 @@ combined_fb_data |>
     t = t.test(value[stimulation=="real"], value[stimulation=="sham"], paired = T)$statistic,
     df = t.test(value[stimulation=="real"], value[stimulation=="sham"], paired = T)$parameter,
     p = t.test(value[stimulation=="real"], value[stimulation=="sham"], paired = T)$p.value,
-  )
+  ) |>
+  mutate(
+    p.adj = p.adjust(p, "bonferroni"),
+    across(starts_with("p"), ~fmt_APA_numbers(.x, .p=T)),
+    across(where(is.double), ~fmt_APA_numbers(.x))
+  ) |> rename_with(~paste0("rs_",.x)) -> fb_tabel_rs
 
-#' Motivation significantly differed between conditions. 
+## Test - session          =====
+combined_fb_data |>
+  summarise(
+    .by = names,
+    s1_m  = mean(value[session=="S1"]),
+    s1_sd = sd(value[session=="S1"]),
+    s2_m  = mean(value[session=="S2"]),
+    s2_sd = sd(value[session=="S2"]),
+    dif = mean(value[session=="S1"] - value[session=="S2"]),
+    t = t.test(value[session=="S1"], value[session=="S2"], paired = T)$statistic,
+    df = t.test(value[session=="S1"], value[session=="S2"], paired = T)$parameter,
+    p = t.test(value[session=="S1"], value[session=="S2"], paired = T)$p.value,
+  ) |> 
+  mutate(
+    p.adj = p.adjust(p, "bonferroni"),
+    across(starts_with("p"), ~fmt_APA_numbers(.x, .p=T)),
+    across(where(is.double), ~fmt_APA_numbers(.x))
+  ) |>
+  rename_with(~paste0("se_",.x)) |>
+  mutate(e="", e2="",e3="", e4="",e5="") |>
+  left_join(fb_tabel_rs, by = join_by(se_names==rs_names)) |>
+  gt() |>
+  tab_spanner("Session 1", starts_with("se_s1")) |>
+  tab_spanner("Session 2", starts_with("se_s2")) |>
+  tab_spanner("Session", c(starts_with("se_"),e2, e3)) |>
+  tab_spanner("Sham", starts_with("rs_s")) |>
+  tab_spanner("Real", starts_with("rs_r")) |>
+  tab_spanner("Stimulation", c(starts_with("rs_"),e4,e5)) |>
+  cols_move(e2, se_s1_sd) |>
+  cols_move(e3, se_s2_sd) |>
+  cols_move(e4, rs_r_sd) |>
+  cols_move(e5, rs_s_sd) |>
+  cols_label(
+    ends_with("m") ~ md("*M*"), ends_with("sd") ~ md("*SD*"),
+    ends_with("dif") ~ md("*M*~diff~"), ends_with("_t") ~ md("*t*"), 
+    ends_with("df") ~ md("*df*"), ends_with("_p") ~ md("*p*"), 
+    ends_with("p.adj") ~ md("*p*~adj~"), starts_with("e") ~ ""
+  ) |>
+  gtsave("tables/pre-fb-sheet-diff-cond-and-session.docx")
 
+  
 
-###  Test relationships     =====
-#### Motivation      ======
+##  Test relationships     =====
+### Motivation      ======
 lmer(MW ~ value*stimulation + (1|subj2), combined_fb_data |> filter(names=="motivation")) |> summary()
 lm(MW ~ value*stimulation, combined_fb_data |> filter(names=="motivation")) |> summary()
 lm(BV ~ value*stimulation, combined_fb_data |> filter(names=="motivation")) |> summary()
@@ -457,26 +484,24 @@ combined_fb_data |>
 
 
 
-#### Tired         ======
+### Tired         ======
 lm(MW ~ value*stimulation, combined_fb_data |> filter(names=="Tired")) |> summary()
 lm(BV ~ value*stimulation, combined_fb_data |> filter(names=="Tired")) |> summary()
 lm(AE ~ value*stimulation, combined_fb_data |> filter(names=="Tired")) |> summary()
 #' Tiredness generally increase MW 
 
 
-#### Tracker       ======
+### Tracker       ======
 lm(MW ~ value*stimulation, combined_fb_data |> filter(names=="subject tracker")) |> summary()
 lm(BV ~ value*stimulation, combined_fb_data |> filter(names=="subject tracker")) |> summary()
 lm(AE ~ value*stimulation, combined_fb_data |> filter(names=="subject tracker")) |> summary()
 #' No influence 
 
 
-####  Attention confidence       ======
+###  Attention confidence       ======
 lm(MW ~ value*stimulation, combined_fb_data |> filter(names=="attention confidence")) |> summary()
 lm(BV ~ value*stimulation, combined_fb_data |> filter(names=="attention confidence")) |> summary()
 lm(AE ~ value*stimulation, combined_fb_data |> filter(names=="attention confidence")) |> summary()
-
-
 
 
 
