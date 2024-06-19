@@ -51,16 +51,15 @@ demo_pfc |>
 # Feedback      ======
 ##  TMS expectation       ========
 ### Descriptives         =====
-stimulation_expectation <- 
-  demo_pfc |>
+demo_pfc |>
   select(subj, contains("_expectation")) |> 
   pivot_longer(contains("expectation")) |>
   summarise(
     .by = name, 
     `No expectation`   = sum(value==0),
-    `Yes, but not how` = sum(value==3),
-    `Yes, reduce`      = sum(value==2),
     `Yes, increase`    = sum(value==1),
+    `Yes, reduce`      = sum(value==2),
+    `Yes, but not how` = sum(value==3),
     `Don't know`       = sum(value==4)
   ) |> 
   pivot_longer(c(everything(), -name), names_to="Expectation") |>
@@ -69,11 +68,77 @@ stimulation_expectation <-
   mutate(n =  "") |>
   gt() |>
   cols_move(n, after ="Session 1") |>
-  cols_label(n = "") -> stimulation_expectation
-if(save_tables){
-  gtsave(stimulation_expectation, "tables/Stimulation_Expectation.docx")
-}
+  cols_label(n = "") |>
+  gtsave("tables/Stimulation_Expectation.docx")
 
+### Test         ======
+# prep data
+pfc |> 
+  mutate(subj2 = as.numeric( str_split(subj, "PFC") |> map_chr(2)) ) |>
+  summarise(
+    .by = c(subj2, stimulation),
+    session = unique(session),
+    mw = mean(probe1_n),
+    bv = mean(zlogbv),
+    ae = mean(zlogapen)
+  ) |>
+  left_join(
+    demo_pfc |> 
+      select(subj, S1_TMS_expectation, S2_TMS_expectation) |> 
+      pivot_longer(ends_with("expectation"),  values_to = "expectation") |>
+      mutate(name = str_split(name, "_") |> map_chr(1)),
+    by = join_by(subj2==subj, session==name)
+  ) -> pfc_exp_sum
+
+expectations <- list(
+  `0` ="No expectation", `1` = "Yes, increase", `2` = "Yes, reduce", 
+  `1` ="Yes, but not how", `4` = "Don't know") 
+
+# Analyse across dep vars 
+# and across increase/reduce expectation.
+map(c("mw","bv","ae"), \(var){
+  map(1:2, \(x){
+    
+    pfc_exp_sum |>
+      mutate(
+        expectation2 = ifelse(expectation==4, 0, expectation)
+        # set "dont know" to "no expectation". 
+      ) |> 
+      fastDummies::dummy_cols("expectation2") |>
+      lm(as.formula(str_glue(var, "~ expectation2_",x," + stimulation")), data=_) |>
+      summary() -> d2
+    
+    d2$coefficients |> 
+      as_tibble() |>
+      mutate(
+        .before=1, 
+        dep = var, 
+        exp = x,
+        exp_w = expectations[[x+1]],
+        var = rownames(d2$coefficients)
+      )
+  }) |> list_rbind()
+}) |> list_rbind() -> expect_mods
+
+expect_mods |>
+  filter(str_detect(var, "expectation")) |>
+  select(-var, -`Std. Error`, -exp) |>
+  mutate(dep = ifelse(dep=="mw", "MW", ifelse(dep=="bv", "BV", "AE")),
+         across(where(is.double), ~fmt_APA_numbers(.x)), e="") |>
+  pivot_wider(names_from=exp_w, values_from=c("Estimate", "t value", "Pr(>|t|)")) |>
+  gt() |>
+  tab_spanner("Increase", ends_with("Yes, increase")) |>
+  tab_spanner("Decrease", ends_with("Yes, reduce")) |>
+  tab_spanner()  |>
+  cols_move(e, "Pr(>|t|)_Yes, increase") |>
+  cols_label( e="", 
+    starts_with("Estimate") ~ md("*b*"),
+    starts_with("t value") ~ md("*t*"),
+    starts_with("Pr") ~ md("*p*"),
+  ) |> 
+  gtsave("tables/expectation influence.docx")
+  
+  
 ## Guesses     ======
 # Fetch the values
 guess_table <- demo_pfc |>
