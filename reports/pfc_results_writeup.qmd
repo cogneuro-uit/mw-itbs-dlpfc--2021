@@ -26,7 +26,6 @@ loL[["SMW"]] <- brms::loo(mod.pfc.smw)$estimates["looic",]
 loL[["BV"]] <- brms::loo(mod.pfc.bv)$estimates["looic",]
 loL[["AE"]] <- brms::loo(mod.pfc.ae)$estimates["looic",]
 
-
 coef_hdi <- function(x, dir="+"){
   m <- mean(x)
   ll <- hdi(x)[1]
@@ -129,7 +128,7 @@ get_summary <- function(mod){
     gather(variable,val) |>
     group_by(variable) |>
     summarize(mean=mean(val), 
-              q5 = hdi(val)[1],
+              q5  = hdi(val)[1],
               q95 = hdi(val)[2],
               pd = ifelse(mean(val < 0) < 0.5, mean(val > 0), mean(val < 0))) |>
     mutate(variable=fct_recode(variable, 
@@ -148,22 +147,22 @@ get_summary <- function(mod){
                            T ~ "Coefficients")) |>
     mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
            HDI = sprintf("[%.2f, %.2f]", q5, q95),
-           pd = sprintf("%.2f", pd)) |>
+           pd = fmt_APA_numbers(pd, .p=T)) |>
     select(-mean,-q5, -q95)# |> 
    # select(everything(), pd)
 
   r2 <- brms::bayes_R2(mod)
   lo <- brms::loo(mod)$estimates["looic",]
   
-  X <- X |> add_row(variable="R2", pd="", #²
-                    b = sprintf("%.2f", r2[1]),
-                    HDI = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
-                    group="Model fit") |>
-    add_row(variable="LOOIC", pd="", 
-                    b = sprintf("%.2f", lo[1]),
-                    HDI = sprintf("(SE=%.2f)", lo[2]),
-                    group = "Model fit") 
-  X
+  X <- X |> 
+    add_row(variable = "R2", pd="", #²
+            b        = fmt_APA_numbers(r2[1], .p=T),
+            HDI      = fmt_APA_numbers(c(r2[3], r2[4]),.p=T) %>% {str_glue("[{.[1]}, {.[2]}]")},
+            group    = "Model fit") |>
+    add_row(variable = "LOOIC", pd="", 
+            b        = fmt_APA_numbers(lo[1], .chr=T),
+            HDI      = paste0("(SE=", fmt_APA_numbers(lo[2]), ")"),
+            group    = "Model fit") 
 }
 bind_cols(
   get_summary(mod.pfc.mw),
@@ -219,7 +218,7 @@ get_summary_behav <- function(mod){
     gather(variable,val) |>
     group_by(variable) |>
     summarize(mean=mean(val), 
-              q5 = hdi(val)[1],
+              q5  = hdi(val)[1],
               q95 = hdi(val)[2],
               pd=ifelse(mean(val < 0) < 0.5, mean(val > 0), mean(val < 0))) |>
     mutate(variable=fct_recode(variable, Intercept="b_Intercept",
@@ -238,24 +237,24 @@ get_summary_behav <- function(mod){
     arrange(variable) |>
     mutate(group=case_when(variable %in% c("Sigma (subjects)","Sigma") ~ "Model fit",
                            T ~ "Coefficients")) |>
-    mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
+    mutate(b   = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
            HDI = sprintf("[%.2f, %.2f]", q5, q95),
-           pd = sprintf("%.2f", pd)) |>
+           pd  = fmt_APA_numbers(pd, .p=T)) |>
     select(-mean,-q5, -q95) 
 
   r2 <- brms::bayes_R2(mod)
   lo <- brms::loo(mod)$estimates["looic",]
-  X <- X |> add_row(variable="R2", pd="", #²
-                    b=sprintf("%.2f", r2[1]),
-                    HDI=sprintf("[%.2f, %.2f]", r2[3], r2[4]),
-                    group="Model fit") |>
-    add_row(variable="LOOIC", pd="", 
-                    b = sprintf("%.2f", lo[1]),
-                    HDI = sprintf("(SE=%.2f)", lo[2]),
-                    group="Model fit") 
+  X <- X |> 
+    add_row(variable = "R2", pd="", #²
+            b        = fmt_APA_numbers(r2[1], .p=T),
+            HDI      = fmt_APA_numbers(c(r2[3], r2[4]),.p=T) %>% {str_glue("[{.[1]}, {.[2]}]")},
+            group    = "Model fit") |>
+    add_row(variable = "LOOIC", pd="", 
+            b        = fmt_APA_numbers(lo[1], .chr=T),
+            HDI      = paste0("(SE=", fmt_APA_numbers(lo[2]), ")"),
+            group    = "Model fit") 
   X
 }
-
 bind_cols(
   get_summary_behav(mod.pfc.bv) |> rename(BV=b, BVhdi = HDI, BVpd = pd), 
   get_summary_behav(mod.pfc.ae)[,c("b","HDI", "pd")] |> rename(AE = b, AEhdi = HDI, AEpd=pd)) -> M2
