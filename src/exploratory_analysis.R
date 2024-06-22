@@ -180,68 +180,6 @@ if(script_save_figures){
 }
 
 # Post      =====
-### Test predictions         ======
-#### Frequent      ======
-demo_pfc |>
-  select(contains("FB_stimulation"), contains("researcher"),subj, -contains("conf"))  |>
-  mutate(across(everything(), as.integer)) |>
-  pivot_longer(c(contains("Researcher"), contains("_FB_"))) |>
-  mutate(s = ifelse(str_detect(name, "[Ss]1"), "S1", "S2"),
-         pers = ifelse(str_detect(name, "Resear"), "Researcher", "Participant"),
-         name=NULL,
-  ) |>
-  left_join(
-    demo_pfc |>
-      select(contains("true"), subj) |>
-      pivot_longer(contains("true")) |> 
-      mutate(name = ifelse(name=="true_stim1", "S1","S2")) |>
-      rename(true_stim=value),
-    by = join_by("subj"=="subj", "s"=="name" )) |>
-  summarise(
-    .by    = c(s, pers), 
-    chisq_s  = chisq.test(value, true_stim)$statistic,
-    chisq_p  = chisq.test(value, true_stim)$p.value,
-    fisher_p = fisher.test(value, true_stim)$p.value,
-  )
-
-#### Bayesian ======
-# Fit a Bayesian Poisson model to the observed counts
-b_guess_data <- 
-  demo_pfc |>
-  select(subj, S1_FB_stimulation, S2_FB_stimulation, true_stim1, true_stim2, 
-         S1_Researcher_stim, S2_Researcher_stim) |>
-  pivot_longer(c(starts_with("S1"),starts_with("S2"))) |>
-  mutate(
-    split = str_split(name, "_"), 
-    session = map_chr(split, 1),
-    pers = ifelse(map_chr(split, 2)=="Researcher", "Researcher", "Participant"),
-    true_stim = ifelse(session=="S1", true_stim1, true_stim2),
-    pred_stim = as.integer(value)
-  ) |>
-  select(-true_stim1, -true_stim2, -name, -value, -split)
-
-b_guess_data |>
-  summarise(
-    .by = 
-  )
-
-map(c("Participant", "Researcher"), \(per){
-  map(c("S1","S2"), \(sess){
-    b_guess_data |>
-      filter(pers == per & session == sess) -> d
-    
-    tibble(
-      pers = per,
-      session = sess,
-      bf10 = extractBF(
-        contingencyTableBF(
-          table(d[["pred_stim"]], d[["true_stim"]]), sampleType = "jointMulti"
-        )
-      )[["bf"]]
-    )
-  }) |> list_rbind()
-}) |> list_rbind()
-
 
 ## Accumulating effects of TMS      =====
 # table

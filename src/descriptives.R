@@ -5,6 +5,7 @@ load.project()
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # Toggles         =====
 script_save_tables <- FALSE
+script_save_figures <- FALSE
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
@@ -682,10 +683,7 @@ p2 <-
   scale_x_continuous(breaks = 1:5, 
                      labels = c("(1) No ", "(2) Unlikely", "(3) Possible", "(4) Probable", "(5) Definitively")) +
   labs(y="Symptom", x = "Response", title = "B) Relation to TMS")
-#ggsave("figs/TMS_Checklist/relation_to_tms.svg", p2, height = 5, width = 10)
 
-library(patchwork)
-p1+p2+plot_layout(nrow = 2)
 if(script_save_figures){
   ggsave(p1, "figs/TMS_Checklist_figure_symptom.svg")
   ggsave(p2, "figs/TMS_Checklist_figure_tms.svg")
