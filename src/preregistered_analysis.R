@@ -14,12 +14,10 @@ load_bayesian_data <- TRUE
   #' FALSE will NOT load any Bayesian models, and will therefore RUN all Bayesian models. 
 
 
-
-
 # Bayesian plotting function
 bayes_plot <- function( data_list, variables = NULL ){
   int <- variables(data_list)[str_detect(variables(data_list), "Intercept")]
-  remove_list <- c(c("disc","lp__", "lprior"),variables,int)
+  remove_list <- c(c("disc","lp__", "lprior"), variables,int)
   gpars <- setdiff(variables(data_list), remove_list)
   brms::rhat(data_list) -> b
   
@@ -329,6 +327,134 @@ if(load_bayesian_data){
  load("data/export/paper_vars.RData")
 }
 
+## FULL BAYES      =====
+if(!load_bayesian_data){
+  brm(
+    probe1 ~ zlogapen*zlogbv*stimulation*block + scale(proberound) + (1|subj), data = pfc,
+    family=cumulative("probit"), chains = 6, iter=4000, cores=6, init=0, backend="cmdstanr"
+  ) -> larg_mod_test
+  bayes_plot(larg_mod_test)
+  
+  save(larg_mod_test, file = "data/export/paper_large_model.Rdata")
+} 
+if(load_bayesian_data){
+  load("data/export/paper_large_model.Rdata")
+}
+
+l_mod_table <- 
+  as_tibble(larg_mod_test) |> 
+  select(starts_with("b_"), sd_subj__Intercept) |>
+  gather(variable,val) |>
+  group_by(variable) |>
+  summarize(mean=mean(val), 
+            q5 = hdi(val)[1],
+            q95 = hdi(val)[2],
+            erat = sum(val>0)/sum(val<=0),
+            erat = ifelse(erat<1, 1/erat, erat),
+            pd = ifelse(mean(val < 0) < 0.5, mean(val > 0), mean(val < 0))) |>
+  mutate(variable=fct_recode(
+    variable,
+    Threshold1="b_Intercept[1]", Threshold2="b_Intercept[2]", Threshold3="b_Intercept[3]", 
+    # Block
+    `Stimulation (B0)`="b_stimulationreal",
+    B1="b_blockB1", 
+    B2="b_blockB2", 
+    B3="b_blockB3",
+    `B1 x stimulation`="b_stimulationreal:blockB1", 
+    `B2 x stimulation`="b_stimulationreal:blockB2",
+    `B3 x stimulation`="b_stimulationreal:blockB3", 
+    Trial="b_scaleproberound",  
+    # Behaviour
+    BV = "b_zlogbv", 
+    `BV x stimulation` = "b_zlogbv:stimulationreal", 
+    AE = "b_zlogapen", 
+    `AE x stimulation` = "b_zlogapen:stimulationreal",
+    `BV x AE` = "b_zlogapen:zlogbv",
+    `BV x AE x stimulation` = "b_zlogapen:zlogbv:stimulationreal",
+    # behaviour and block 
+    `BV x B1` = "b_zlogbv:blockB1", 
+    `BV x B2` = "b_zlogbv:blockB2", 
+    `BV x B3` = "b_zlogbv:blockB3",
+    `BV x B1 x stimulation` = "b_zlogbv:stimulationreal:blockB1", 
+    `BV x B2 x stimulation` = "b_zlogbv:stimulationreal:blockB2", 
+    `BV x B3 x stimulation` = "b_zlogbv:stimulationreal:blockB3",
+    `AE x B1` = "b_zlogapen:blockB1", 
+    `AE x B2` = "b_zlogapen:blockB2", 
+    `AE x B3` = "b_zlogapen:blockB3",
+    `AE x B1 x stimulation` = "b_zlogapen:stimulationreal:blockB1", 
+    `AE x B2 x stimulation` = "b_zlogapen:stimulationreal:blockB2", 
+    `AE x B3 x stimulation` = "b_zlogapen:stimulationreal:blockB3",
+    `AE x B1` = "b_zlogapen:blockB1", 
+    `AE x B2` = "b_zlogapen:blockB2", 
+    `AE x B3` = "b_zlogapen:blockB3",
+    `BV x AE x B1` = "b_zlogapen:zlogbv:blockB1",
+    `BV x AE x B2` = "b_zlogapen:zlogbv:blockB2",
+    `BV x AE x B3` = "b_zlogapen:zlogbv:blockB3",
+    `BV x AE x B1 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB1",
+    `BV x AE x B2 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB2",
+    `BV x AE x B3 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB3",
+    `Sigma (subjects)`="sd_subj__Intercept"),
+    variable=ordered(variable, levels=c(
+      "Threshold1", "Threshold2", "Threshold3",
+      "Trial", "Stimulation (B0)", 
+      "B1","B2","B3", 
+      "B1 x stimulation", "B2 x stimulation", "B3 x stimulation", 
+      "BV", 
+      "BV x stimulation", 
+      "AE", 
+      "AE x stimulation", 
+      "BV x AE", 
+      "BV x AE x stimulation", 
+      "BV x B1", 
+      "BV x B2", 
+      "BV x B3", 
+      "BV x B1 x stimulation", 
+      "BV x B2 x stimulation", 
+      "BV x B3 x stimulation", 
+      "AE x B1", 
+      "AE x B2", 
+      "AE x B3", 
+      "AE x B1 x stimulation", 
+      "AE x B2 x stimulation", 
+      "AE x B3 x stimulation", 
+      "BV x AE x B1", 
+      "BV x AE x B2", 
+      "BV x AE x B3", 
+      "BV x AE x B1 x stimulation", 
+      "BV x AE x B2 x stimulation", 
+      "BV x AE x B3 x stimulation", 
+      "Sigma (subjects)"))) |> 
+  arrange(variable) |>
+  mutate(group=case_when(variable %in% c("Sigma (subjects)") ~ "Model fit",
+                         T ~ "Coefficients")) |>
+  mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
+         HDI = sprintf("[%.2f, %.2f]", q5, q95),
+         pd = sprintf("%.2f", pd)) |>
+  select(-mean,-q5, -q95)
+
+r2 <- brms::bayes_R2(larg_mod_test)
+lo <- brms::loo(larg_mod_test)$estimates["looic",]
+  
+l_mod_table |> 
+  add_row(variable="R2", pd="", #²
+          b = sprintf("%.2f", r2[1]),
+          HDI = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
+          group="Model fit") |>
+  add_row(variable="LOOIC", pd="", 
+          b = sprintf("%.2f", lo[1]),
+          HDI = sprintf("(SE=%.2f)", lo[2]),
+          group = "Model fit") |>
+  mutate(erat = fmt_APA_numbers(erat, .chr=T)) |>
+  gt(groupname_col = "group") |>
+  cols_move(c(erat, pd), HDI) |>
+  cols_label(
+    b = md("*b*"), 
+    erat = md("ER~b~"),
+    pd = md("*p*~b~")
+  ) |>
+  cols_align("center", 2:6) |>
+  gtsave("tables/large_bayes_model.docx")
+  
 
 # Other         =====
 ## Visualize Bayesian models           =====
@@ -385,7 +511,7 @@ geom_hline(yintercept=0, linetype = "dashed") +
   labs(y  = "", title = "b)")
 
 
-##    MB & SMW        =====
+###    MB & SMW        =====
 as.data.frame(mod.pfc.mb) |> 
   select(starts_with("b_block"), starts_with("b_stimulation")) |> 
   rename_with(~paste0("mb_", .x)) |> 
@@ -447,7 +573,7 @@ loo_compare(mod.pfc.mw2, mod.pfc.test)
 
 
 
-##' Quantify differences using the Bayesian regression models     =====
+## Quantify differences using the Bayesian regression models     =====
 pfc |>
   select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
   group_by(subj,block,stimulation) |>
@@ -523,4 +649,6 @@ as.data.frame(mod.pfc.mw) |>
 ### Gathered plot           ======
 bPlot1+bPlot2+bPlot3
 ggsave("figs/three_bayes_models.png", width=12, heigh=4)
+
+
 
