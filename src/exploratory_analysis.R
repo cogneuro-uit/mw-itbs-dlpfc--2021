@@ -243,4 +243,55 @@ med_data |>
   ) |>
   gtsave("tables/meditation_and_musical_experience.docx")
 
-  
+## Test accumulating effects of TMS      =====
+pfc |>
+  mutate(probe1_n = as.integer(probe1)) |>
+  select(subj, region, stimulation, block, proberound, zlogapen, zlogbv, probe1_n) |>
+  # baseline  (B0) correct
+  pivot_longer(c(zlogapen, zlogbv, probe1_n), names_to="name", values_to = "val") |> 
+  pivot_wider(names_from = c(block, name), values_from = val) |> 
+  mutate(B0_ae=0,
+         B1_ae=B1_zlogapen-B0_zlogapen,
+         B2_ae=B2_zlogapen-B0_zlogapen,
+         B3_ae=B3_zlogapen-B0_zlogapen,
+         B0_bv=0,
+         B1_bv=B1_zlogbv-B0_zlogbv,
+         B2_bv=B2_zlogbv-B0_zlogbv,
+         B3_bv=B3_zlogbv-B0_zlogbv,
+         B0_mw=0,
+         B1_mw=B1_probe1_n-B0_probe1_n,
+         B2_mw=B2_probe1_n-B0_probe1_n,
+         B3_mw=B3_probe1_n-B0_probe1_n) |> 
+  select(-ends_with("zlogapen"), -ends_with("zlogbv"), -ends_with("probe1_n")) |>
+  pivot_longer(starts_with("B"), names_to = c("block","variable"), names_sep = "_") |> 
+  mutate(variable=fct_recode(variable, AE="ae",BV="bv",MW="mw"),
+         variable=factor(variable, levels=c("MW","BV","AE"))) |>
+  pivot_wider(names_from=stimulation, values_from=value) |> 
+  # calculate difference between cond
+  summarise(
+    .by=c(subj, block, variable), 
+    sham = mean(sham),
+    real = mean(real),
+  ) |>
+  mutate(diff = real-sham) |> 
+  select(-sham, -real) |>
+  pivot_wider(names_from=c(block), values_from=diff) |>
+  # take the difference between b1-b2 and b2-b3 
+  mutate(B1.b2 = B1 - B2, B2.b3 = B2 - B3)  |>
+  # ggplot(aes(B1.b2))+geom_histogram()
+  summarise(
+    .by    = variable, 
+    b2_m   = mean(B1.b2), 
+    b2_sd  = sd(B1.b2), 
+    b2_t   = t.test(B1.b2, mu=0)$statistic,
+    b2_df  = t.test(B1.b2, mu=0)$parameter,
+    b2_p   = t.test(B1.b2, mu=0)$p.value,
+    b2_bf  = extractBF(ttestBF(B1.b2, mu = 0))$bf,
+    b3_t   = t.test(B2.b3, mu=0)$statistic,
+    b3_df  = t.test(B2.b3, mu=0)$parameter,
+    b3_p   = t.test(B2.b3, mu=0)$p.value,
+    b3_bf  = extractBF(ttestBF(B2.b3, mu = 0))$bf,
+  ) |> mutate(
+    b2_p.adj  = p.adjust(b2_p, "bonferroni"), 
+    b3_p.adj  = p.adjust(b3_p, "bonferroni"), 
+  )
