@@ -46,9 +46,11 @@ pfc |>
     by = join_by(subj2==subj, session==name)
   ) -> pfc_exp_sum
 
-expectations <- list(
-  `0` ="No expectation", `1` = "Yes, increase", `2` = "Yes, reduce", 
-  `1` ="Yes, but not how", `4` = "Don't know") 
+#' 0 = "No expectation" 
+#' 1 = "Yes, increase" 
+#' 2 = "Yes, reduce"
+#' 3 = "Yes, but not how" 
+#' 4 = "Don't know"
 
 tms_expectation_tbl <- 
   pfc_exp_sum |>
@@ -76,7 +78,7 @@ tms_expectation_tbl <-
   mutate(
     across(ends_with("_p"), ~fmt_APA_numbers(.x, .p=T)),
     across(where(is.double), ~fmt_APA_numbers(.x)),
-    e="",
+    e="", e2="",
     name = fct_recode(name, MW="mw", BV="bv",AE="ae")
   ) |>
   rename(Variable="name") |>
@@ -85,6 +87,7 @@ tms_expectation_tbl <-
   tab_spanner("Decrease", starts_with("d_")) |>
   tab_spanner("No expectation", starts_with("no_")) |>
   cols_move(e, i_bf01) |>
+  cols_move(e2, no_sd) |>
   cols_label(
     ends_with("_m")~md("*M*"),
     ends_with("_t")~md("*t*"),
@@ -93,7 +96,7 @@ tms_expectation_tbl <-
     ends_with("_bf01")~md("BF~01~"), 
     ends_with("_sd") ~md("*SD*"),
     ends_with("diff") ~ md("*M*~diff~"),
-    e=""
+    starts_with("e") ~"",
   ) |>
   cols_align("center")
 if(script_save_tables){
@@ -177,74 +180,6 @@ if(script_save_figures){
 }
 
 # Post      =====
-## Stimulation guesses     ======
-# Fetch the values
-guess_table <- demo_pfc |>
-  select(contains("FB_stimulation"), contains("researcher"),subj, -contains("conf")) |>
-  mutate(across(everything(), as.integer)) |>
-  pivot_longer(c(contains("Researcher"), contains("_FB_"))) |>
-  mutate(s = ifelse(str_detect(name, "[Ss]1"), "S1", "S2"),
-         pers = ifelse(str_detect(name, "Resear"), "Researcher", "Participant"),
-  ) |>
-  left_join(
-    demo_pfc |>
-      select(contains("true"), subj) |>
-      pivot_longer(contains("true")) |> 
-      mutate(name = ifelse(name=="true_stim1", "S1","S2")) |>
-      rename(true_stim=value),
-    by = join_by("subj"=="subj", "s"=="name" )
-  ) |>
-  summarise(
-    .by = c(s, pers, true_stim),
-    val1 = sum(value),
-    val0 = sum(value==0)
-  ) |> 
-  arrange(s, pers, true_stim) |>
-  pivot_wider(names_from=pers, values_from = c(val1, val0)) |>
-  select(s, true_stim, val0_Participant, val1_Participant, val0_Researcher, val1_Researcher)
-guess_table
-
-# Create the table
-guess_table_d <- 
-  guess_table |>
-  add_row(
-    guess_table |> 
-      pivot_longer(contains("val")) |>
-      summarise(
-        .by = c(s, name),
-        sum = sum(value)
-      ) |>
-      pivot_wider(names_from = name, values_from = sum) |>
-      mutate(true_stim=c(3,3))
-  ) |> 
-  arrange(s, true_stim) |> 
-  mutate(
-    par_sum = val0_Participant+val1_Participant,
-    res_sum = val0_Researcher+val1_Researcher,
-    true_stim = case_when(
-      true_stim==1~"True",
-      true_stim==0~"False",
-      true_stim==3~"Total",)
-  ) |>
-  mutate(b="") |>
-  gt() |>
-  tab_spanner("Participants",
-              c(val0_Participant,val1_Participant, par_sum) )|>
-  tab_spanner("Researcher", 
-              c(val0_Researcher, val1_Researcher, res_sum)) |>
-  tab_spanner("True state", c(s, true_stim)) |>
-  cols_label( val0_Participant = "False",
-              val1_Participant = "True",
-              val0_Researcher = "False", 
-              val1_Researcher = "True", 
-              par_sum = "Total", res_sum = "Total",
-              b = "", s = "", true_stim="") |>
-  cols_move(b, par_sum) 
-guess_table_d
-if(script_save_tables){
-  gtsave(guess_table_d, "tables/Blinding_Guesses_for_Participants_and_Researchers.docx")  
-}
-
 ### Test predictions         ======
 #### Frequent      ======
 demo_pfc |>
@@ -285,6 +220,11 @@ b_guess_data <-
   ) |>
   select(-true_stim1, -true_stim2, -name, -value, -split)
 
+b_guess_data |>
+  summarise(
+    .by = 
+  )
+
 map(c("Participant", "Researcher"), \(per){
   map(c("S1","S2"), \(sess){
     b_guess_data |>
@@ -302,25 +242,6 @@ map(c("Participant", "Researcher"), \(per){
   }) |> list_rbind()
 }) |> list_rbind()
 
-## Confidence in guesses       ======
-# Fetch confidence values
-demo_pfc |> 
-  select(contains("conf"), subj, -contains("_task_")) |>
-  mutate(across(everything(), as.integer)) |>
-  pivot_longer(contains("_")) |>
-  mutate(
-    split = ifelse(str_detect(name, "conf"), "conf", "true_stim"),
-    res = ifelse(str_detect(name, "[Rr]es"), "Researcher", "Participant"),
-    session = ifelse(str_detect(name, "[Ss]1"), "S1", "S2")
-  )  |>
-  left_join(
-    demo_pfc |>
-      select(subj, contains("true_stim")) |>
-      pivot_longer(contains("true_stim")) |>
-      mutate(name = ifelse(str_detect(name,"1"), "S1", "S2")) |>
-      rename(true_stim = value),
-    by = join_by(subj, session == name)
-  ) -> r_p_conf
 
 ## Accumulating effects of TMS      =====
 # table
