@@ -2,17 +2,15 @@ library(ProjectTemplate)
 # migrate.project() # you might need to run this. 
 load.project()
 
-# Libraries
-library(brms)
-library(bayesplot)
-library(cmdstanr)
-library(tidybayes)
 
-# Toggle: 
-load_bayesian_data <- TRUE 
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# Toggles           =====
+script_load_bayesian_data <- TRUE 
   #' TRUE will load the saved Bayesian models in (paper_vars) 
   #' FALSE will NOT load any Bayesian models, and will therefore RUN all Bayesian models. 
 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
 # Bayesian plotting function
 bayes_plot <- function( data_list, variables = NULL ){
@@ -270,7 +268,7 @@ ggsave(filename ="figs/prereg/descriptive_MB-SMW+block+stim-v2.svg", dpi = 300, 
 
 
 # Bayesian models     ======
-if(!load_bayesian_data){
+if(!script_load_bayesian_data){
     
   ## MW           =====
   mod.pfc.mw <- brm(probe1 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
@@ -323,12 +321,12 @@ if(!load_bayesian_data){
   save(mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, file="data/export/paper_vars.RData")
 }
 
-if(load_bayesian_data){
+if(script_load_bayesian_data){
  load("data/export/paper_vars.RData")
 }
 
 ## FULL BAYES      =====
-if(!load_bayesian_data){
+if(!script_load_bayesian_data){
   brm(
     probe1 ~ zlogapen*zlogbv*stimulation*block + scale(proberound) + (1|subj), data = pfc,
     family=cumulative("probit"), chains = 6, iter=4000, cores=6, init=0, backend="cmdstanr"
@@ -337,7 +335,7 @@ if(!load_bayesian_data){
   
   save(larg_mod_test, file = "data/export/paper_large_model.Rdata")
 } 
-if(load_bayesian_data){
+if(script_load_bayesian_data){
   load("data/export/paper_large_model.Rdata")
 }
 
