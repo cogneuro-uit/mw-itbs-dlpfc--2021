@@ -1,0 +1,49 @@
+---
+title: "Larg m"
+format: docx
+---
+
+```{r, echo=F, warning=F, message=F}
+library(tidyverse)
+library(gt)
+
+source("../lib/fmt_APA.R")
+source("../lib/mcmc.R")
+load("../data/export/paper_large_model.Rdata")
+
+# samples as matrix
+llm <- as.matrix(larg_mod_test)
+loL <- brms::loo(larg_mod_test)$estimates["looic",]
+
+coef_hdi <- function(x, dir="+"){
+  m <- mean(x)
+  ll <- hdi(x)[1]
+  ul <- hdi(x)[2]
+  erat <- sum(x>0)/sum(x<=0)
+  pval <- sum(x>0)/length(x)
+
+  if(dir!="+"){
+    erat=1./erat
+    pval=1-pval
+  }
+  # pval=sprintf("%.2f",pval)
+  if(is.infinite(erat)){
+    erat=ifelse(erat<0, "-\\infty", "\\infty")
+  } else {
+    erat=fmt_APA_numbers(erat)
+  }
+  sprintf("$b=%s, [%s, %s], p^{%s}=%s, \\text{ER}^{%s}=%s$", 
+          fmt_APA_numbers(m), 
+          fmt_APA_numbers(ll), 
+          fmt_APA_numbers(ul), 
+          fmt_APA_numbers(dir), 
+          fmt_APA_numbers(pval, .p=T),
+          fmt_APA_numbers(dir), 
+          erat
+          )
+}
+```
+
+<!---   Describe big analysis that is placed in the supplemental material   --->
+
+We did one exploratory Bayesian ordered-probit model that included the behavioural indices (behavioural variability, BV and approximate entropy, AE; see Table S8 for all coefficients). Despite the additional predictors, we still found real stimulation to increase MW compared to sham stimulation (B1 x stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB1"])`; B2 x stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB2"])`; B3 x stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB3"])`. Moreover, we found that the last two blocks during the real stimulation interacted with BV (BV x B2 x stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal:blockB2"])`; BV x B3 x stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal:blockB3"])`), such that reduced BV predicted more MW, which is in contradiction to previous research CITE.  
