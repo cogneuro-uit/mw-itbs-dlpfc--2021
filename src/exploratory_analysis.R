@@ -183,7 +183,8 @@ if(script_save_figures){
 
 ## Accumulating effects of TMS      =====
 # table
-pfc |>
+accumen_data_tbl <- ""
+  pfc |>
   mutate(probe1_n = as.integer(probe1)) |>
   select(subj, region, stimulation, block, proberound, zlogapen, zlogbv, probe1_n) |>
   # baseline  (B0) correct
@@ -205,38 +206,85 @@ pfc |>
   pivot_longer(starts_with("B"), names_to = c("block","variable"), names_sep = "_") |> 
   mutate(variable=fct_recode(variable, AE="ae",BV="bv",MW="mw"),
          variable=factor(variable, levels=c("MW","BV","AE"))) |>
-  pivot_wider(names_from=stimulation, values_from=value) |> 
+  pivot_wider(names_from=stimulation, values_from=value) |>
   # calculate difference between cond
   summarise(
     .by=c(subj, block, variable), 
     sham = mean(sham),
     real = mean(real),
   ) |>
-  mutate(diff = real-sham) |> 
+  mutate(diff = real-sham) |>
   select(-sham, -real) |>
   pivot_wider(names_from=c(block), values_from=diff) |>
   # take the difference between b1-b2 and b2-b3 
-  mutate(B1.b2 = B1 - B2, B2.b3 = B2 - B3)  |>
-  # ggplot(aes(B1.b2))+geom_histogram()
+  mutate(B2 = B2 - B1, B3 = B3 - B2)  |> 
+  pivot_longer(c(B1, B2, B3)) |>
+  select(-B0) 
+  
+lsr::cohensD(accumen_data_tbl)
+accumen_data_tbl |>
+  # pivot_wider(names_from=variable, values_from=value) |>
+  mutate(nill = 0) |>
   summarise(
-    .by    = variable, 
-    b1_m   = mean(B1), 
-    b1_sd  = sd(B1), 
-    b1_t   = t.test(B1, mu=0)$statistic,
-    b1_df  = t.test(B1, mu=0)$parameter,
-    b1_p   = t.test(B1, mu=0)$p.value,
-    b1_bf  = extractBF(ttestBF(B1, mu = 0))$bf,
-    b2_m   = mean(B1.b2), 
-    b2_sd  = sd(B1.b2), 
-    b2_t   = t.test(B1.b2, mu=0)$statistic,
-    b2_df  = t.test(B1.b2, mu=0)$parameter,
-    b2_p   = t.test(B1.b2, mu=0)$p.value,
-    b2_bf  = extractBF(ttestBF(B1.b2, mu = 0))$bf,
-    b3_t   = t.test(B2.b3, mu=0)$statistic,
-    b3_df  = t.test(B2.b3, mu=0)$parameter,
-    b3_p   = t.test(B2.b3, mu=0)$p.value,
-    b3_bf  = extractBF(ttestBF(B2.b3, mu = 0))$bf,
-  ) |> mutate(
-    b2_p.adj  = p.adjust(b2_p, "bonferroni"), 
-    b3_p.adj  = p.adjust(b3_p, "bonferroni"), 
+    .by = c(variable, name),
+    d = lsr::cohensD(value, nill, method="paired")
   )
+accumen_test_tbl <- 
+  accumen_data_tbl |>
+  mutate(nill = 0) |>
+  summarise(
+    .by    = c(variable, name), 
+    m   = mean(value), 
+    sd  = sd(value), 
+    t   = t.test(value, mu=0)$statistic,
+    df  = t.test(value, mu=0)$parameter,
+    p   = t.test(value, mu=0)$p.value,
+    d   = lsr::cohensD(value, nill, method="paired"),
+    bf10  = extractBF(ttestBF(value, mu = 0))$bf,
+  ) |> mutate(.by = variable, p.adj  = p.adjust(p, "bonferroni")) |>
+  mutate(name=case_when(
+    name=="B1"~"B1 - B0", 
+    name=="B2"~"B2 - B1", 
+    name=="B3"~"B3 - B2"),
+    across(contains("p"), ~ fmt_APA_numbers(.x, .p=T)), 
+    across(where(is.double), ~fmt_APA_numbers(.x))
+  ) |> 
+  pivot_wider(names_from=variable, values_from=c(m,sd,t,df,p,p.adj, bf10, d)) 
+  
+
+# Table
+accumen_tbl <- 
+  accumen_test_tbl |>
+  mutate(e="", e2="") |>
+  gt() |>
+  tab_spanner("Mind Wandering", ends_with("MW")) |>
+  tab_spanner("Behavioural Variability", ends_with("BV")) |>
+  tab_spanner("Approximate Entropy", ends_with("AE")) |>
+  cols_move(ends_with("MW"), name) |>
+  cols_move(ends_with("BV"), bf10_MW) |>
+  cols_move(e, bf10_MW) |>
+  cols_move(e2, bf10_BV) |>
+  cols_label(
+    starts_with("m_") ~ md("*M*~diff~"),
+    starts_with("sd_") ~ md("*SD*~diff~"),
+    starts_with("t_") ~ md("*t*"),
+    starts_with("df_") ~ md("*df*"),
+    starts_with("p_") ~ md("*p*"),
+    starts_with("p.adj_") ~ md("*p*~adj~"),
+    starts_with("bf10_") ~ md("BF~10~"),
+    starts_with("e") ~ ""
+  )
+
+if(script_save_tables){
+  gtsave(accumen_tbl, "tables/accumulating effect of the tms.docx")
+}
+
+
+# test vis
+accumen_data_tbl |>
+  ggplot(aes(name, value)) + 
+  facet_wrap(~variable) +
+  stat_summary(aes(group=subj), position = position_jitter(.15, seed = 147), alpha =.1) +
+  stat_summary(aes(group=subj), geom = "line", position = position_jitter(.15, seed = 147), alpha =.1) +
+  stat_summary(col="red")+
+  stat_summary(geom="line")
