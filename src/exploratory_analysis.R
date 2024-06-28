@@ -99,6 +99,8 @@ tms_expectation_tbl <-
     starts_with("e") ~"",
   ) |>
   cols_align("center")
+tms_expectation_tbl
+
 if(script_save_tables){
   gtsave(tms_expectation_tbl, "tables/tms_expectation_table.docx")
 }
@@ -183,7 +185,7 @@ if(script_save_figures){
 
 ## Accumulating effects of TMS      =====
 # table
-accumen_data_tbl <- ""
+accumen_data_tbl <- 
   pfc |>
   mutate(probe1_n = as.integer(probe1)) |>
   select(subj, region, stimulation, block, proberound, zlogapen, zlogbv, probe1_n) |>
@@ -220,15 +222,8 @@ accumen_data_tbl <- ""
   mutate(B2 = B2 - B1, B3 = B3 - B2)  |> 
   pivot_longer(c(B1, B2, B3)) |>
   select(-B0) 
-  
-lsr::cohensD(accumen_data_tbl)
-accumen_data_tbl |>
-  # pivot_wider(names_from=variable, values_from=value) |>
-  mutate(nill = 0) |>
-  summarise(
-    .by = c(variable, name),
-    d = lsr::cohensD(value, nill, method="paired")
-  )
+
+
 accumen_test_tbl <- 
   accumen_data_tbl |>
   mutate(nill = 0) |>
@@ -286,5 +281,11 @@ accumen_data_tbl |>
   facet_wrap(~variable) +
   stat_summary(aes(group=subj), position = position_jitter(.15, seed = 147), alpha =.1) +
   stat_summary(aes(group=subj), geom = "line", position = position_jitter(.15, seed = 147), alpha =.1) +
+  stat_summary(col="red")+
+  stat_summary(geom="line")
+
+accumen_data_tbl |>
+  ggplot(aes(name, value)) + 
+  facet_wrap(~variable) +
   stat_summary(col="red")+
   stat_summary(geom="line")
