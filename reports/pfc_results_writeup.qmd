@@ -298,5 +298,26 @@ M2 |>
 ```
 
 
-# References
+```{r}
+sbv |> 
+  as_tibble() |> 
+  select(`b_stimulationreal:blockB1`, `b_stimulationreal:blockB2`,`b_stimulationreal:blockB3`) |>
+  mutate(b2_b1 = `b_stimulationreal:blockB2` - `b_stimulationreal:blockB1`,
+         b3_b2 = `b_stimulationreal:blockB3` - `b_stimulationreal:blockB2`) |>
+  summarise(
+    m = mean(b2_b1),
+    hdi = hdi(b2_b1)[[1]],
+    hdi2 = hdi(b2_b1)[[2]],
+    er = mean( sum(b2_b1<0) / sum(b2_b1>=0) )
+    # m2 = mean(b3_b2),
+  )
+  
+```
+
+
+```{r}
+smw
+sbv
+sae
+```
 
