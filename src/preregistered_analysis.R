@@ -2,15 +2,19 @@ library(ProjectTemplate)
 # migrate.project() # you might need to run this. 
 load.project()
 
-
-
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
 # Toggles           =====
 script_load_bayesian_data <- TRUE 
   #' TRUE will load the saved Bayesian models in (paper_vars) 
   #' FALSE will NOT load any Bayesian models, and will therefore RUN all Bayesian models. 
+script_save_figures_tables <- TRUE
+  #' !!! This is not completed !!!
+  #' TRUE will save figure and tables 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+
 
 # Bayesian plotting function
 bayes_plot <- function( data_list, variables = NULL ){
@@ -54,7 +58,7 @@ d.pro.stim_pfc |>
     probe1 = ordered(5-as.numeric(probe1)),
     probe2 = ordered(5-as.numeric(probe2)),
     probe3 = ordered(5-as.numeric(probe3)),
-    stimulation = factor(stimulation, levels = c("sham", "real"))
+    stimulation = fct(stimulation, levels = c("sham", "real")),
   ) -> pfc
 
 
@@ -81,26 +85,24 @@ pfc_anova_data |>
 write_csv(pfc_anova_data2, file="data/pfc_anova.csv")
 
 
-# Results from these functions seems to correspond to JASP
+# Results from these functions correspond to the outputs from JASP
 afex::aov_car(MW1 ~ block * stimulation  + Error(subj/(block*stimulation)), 
-              pfc_anova_data) -> aov_mw
+              pfc_anova_data, type = 3) -> aov_mw
 anova(aov_mw, es="pes")
 aov_mw |> summary() 
-  # sphericity not met for block
+  # specificity not met for block
 
 afex::aov_car(BV ~ block*stimulation + Error(subj/(block*stimulation)), 
-              pfc_anova_data)  -> aov_bv
+              pfc_anova_data, type = 3)  -> aov_bv
 anova(aov_bv, es="pes")
 aov_bv |> summary()
 
 afex::aov_car(AE ~ block*stimulation + Error(subj/(block*stimulation)), 
-              pfc_anova_data)  -> aov_ae
+              pfc_anova_data, type = 3) -> aov_ae
 anova(aov_ae, es="pes")
 aov_ae |> summary()
 
-#' No interaction between block and stimulation was found. We therefore do not do
-#' the contrast analysis.  
-
+### Table         ======
 pfc_anova_data |>
   summarise(
     .by = c(stimulation, block),
@@ -138,10 +140,11 @@ pfc_anova_data |>
   cols_move(e6, AE_sd_real) 
   gtsave("tables/anova_descriptives.docx")
 
-##  Contrasts     =====
-# Note. We do not report these.  
-# Check for significant increase in variables compared to baseline
-### MW            =====
+###  Contrasts     =====
+#' Because we found no interaction between block and stimulation , we do not 
+#' report the contrast analyses, even though it is provided here. 
+
+#### MW            =====
 with(filter(pfc_t, variable=="MW", block=="B1"),
      t.test(value ~ stimulation, paired=T))
 with(filter(pfc_t, variable=="MW", block=="B2"),
@@ -150,14 +153,14 @@ with(filter(pfc_t, variable=="MW", block=="B2"),
 # Compared to baseline, block 2 is significantly increased. 
 with(filter(pfc_t, variable=="MW", block=="B3"),
      t.test(value ~ stimulation, paired=T))
-### AE               =====
+#### AE               =====
 with(filter(pfc_t, variable=="AE", block=="B1"),
      t.test(value ~ stimulation, paired=T))
 with(filter(pfc_t, variable=="AE", block=="B2"),
      t.test(value ~ stimulation, paired=T))
 with(filter(pfc_t, variable=="AE", block=="B3"),
      t.test(value ~ stimulation, paired=T))
-### BV                =======
+#### BV                =======
 with(filter(pfc_t, variable=="BV", block=="B1"),
      t.test(value ~ stimulation, paired=T))
 with(filter(pfc_t, variable=="BV", block=="B2"),
@@ -191,6 +194,7 @@ pfc |>
   pivot_longer(starts_with("B"), names_to = c("block","variable"), names_sep = "_") |> 
   mutate(variable=fct_recode(variable, AE="ae",BV="bv",MW="mw"),
          variable=factor(variable, levels=c("MW","BV","AE"))) -> pfc_t
+
 
 ###  MW, BV and AE          ======
 pfc_t |>
@@ -269,7 +273,11 @@ ggsave(filename ="figs/prereg/descriptive_MB-SMW+block+stim-v2.svg", dpi = 300, 
 
 # Bayesian models     ======
 if(!script_load_bayesian_data){
-    
+  
+  #' Run the models if they are not loaded (this may take some time depending
+  #' on your computer).
+  
+  
   ## MW           =====
   mod.pfc.mw <- brm(probe1 ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
                     init=0, family=cumulative("probit"), data=pfc, 
@@ -292,8 +300,10 @@ if(!script_load_bayesian_data){
   summary(mod.pfc.bv)
   
   
+  #' For these latter probe (MB, SMW), we ignore the responses that were 
+  #' not preceded by mind wandering.
+  
   ## MB           =====
-  # For these latter probe (MB, SMW), we ignore the responses that were not preceeded by mind wandering.
   pfc |> 
     filter(probe1 > 2) -> dd
   
@@ -319,14 +329,8 @@ if(!script_load_bayesian_data){
   mod.pfc.mb  <- brms::add_criterion(mod.pfc.mb,  criterion = c("bayes_R2", "loo"))
   mod.pfc.smw <- brms::add_criterion(mod.pfc.smw, criterion = c("bayes_R2", "loo"))
   save(mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, file="data/export/paper_vars.RData")
-}
-
-if(script_load_bayesian_data){
- load("data/export/paper_vars.RData")
-}
-
-## FULL BAYES      =====
-if(!script_load_bayesian_data){
+  
+  ## Full Bayesian model            =====
   brm(
     probe1 ~ zlogapen*zlogbv*stimulation*block + scale(proberound) + (1|subj), data = pfc,
     family=cumulative("probit"), chains = 6, iter=4000, cores=6, init=0, backend="cmdstanr"
@@ -334,125 +338,13 @@ if(!script_load_bayesian_data){
   bayes_plot(larg_mod_test)
   
   save(larg_mod_test, file = "data/export/paper_large_model.Rdata")
-} 
+}
+
 if(script_load_bayesian_data){
+  load("data/export/paper_vars.RData")
   load("data/export/paper_large_model.Rdata")
 }
 
-l_mod_table <- 
-  as_tibble(larg_mod_test) |> 
-  select(starts_with("b_"), sd_subj__Intercept) |>
-  gather(variable,val) |>
-  group_by(variable) |>
-  summarize(mean=mean(val), 
-            q5 = hdi(val)[1],
-            q95 = hdi(val)[2],
-            erat = sum(val>0)/sum(val<=0),
-            erat = ifelse(erat<1, 1/erat, erat),
-            pd = ifelse(mean(val < 0) < 0.5, mean(val > 0), mean(val < 0))) |>
-  mutate(variable=fct_recode(
-    variable,
-    Threshold1="b_Intercept[1]", Threshold2="b_Intercept[2]", Threshold3="b_Intercept[3]", 
-    # Block
-    `Stimulation (B0)`="b_stimulationreal",
-    B1="b_blockB1", 
-    B2="b_blockB2", 
-    B3="b_blockB3",
-    `B1 x stimulation`="b_stimulationreal:blockB1", 
-    `B2 x stimulation`="b_stimulationreal:blockB2",
-    `B3 x stimulation`="b_stimulationreal:blockB3", 
-    Trial="b_scaleproberound",  
-    # Behaviour
-    BV = "b_zlogbv", 
-    `BV x stimulation` = "b_zlogbv:stimulationreal", 
-    AE = "b_zlogapen", 
-    `AE x stimulation` = "b_zlogapen:stimulationreal",
-    `BV x AE` = "b_zlogapen:zlogbv",
-    `BV x AE x stimulation` = "b_zlogapen:zlogbv:stimulationreal",
-    # behaviour and block 
-    `BV x B1` = "b_zlogbv:blockB1", 
-    `BV x B2` = "b_zlogbv:blockB2", 
-    `BV x B3` = "b_zlogbv:blockB3",
-    `BV x B1 x stimulation` = "b_zlogbv:stimulationreal:blockB1", 
-    `BV x B2 x stimulation` = "b_zlogbv:stimulationreal:blockB2", 
-    `BV x B3 x stimulation` = "b_zlogbv:stimulationreal:blockB3",
-    `AE x B1` = "b_zlogapen:blockB1", 
-    `AE x B2` = "b_zlogapen:blockB2", 
-    `AE x B3` = "b_zlogapen:blockB3",
-    `AE x B1 x stimulation` = "b_zlogapen:stimulationreal:blockB1", 
-    `AE x B2 x stimulation` = "b_zlogapen:stimulationreal:blockB2", 
-    `AE x B3 x stimulation` = "b_zlogapen:stimulationreal:blockB3",
-    `AE x B1` = "b_zlogapen:blockB1", 
-    `AE x B2` = "b_zlogapen:blockB2", 
-    `AE x B3` = "b_zlogapen:blockB3",
-    `BV x AE x B1` = "b_zlogapen:zlogbv:blockB1",
-    `BV x AE x B2` = "b_zlogapen:zlogbv:blockB2",
-    `BV x AE x B3` = "b_zlogapen:zlogbv:blockB3",
-    `BV x AE x B1 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB1",
-    `BV x AE x B2 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB2",
-    `BV x AE x B3 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB3",
-    `Sigma (subjects)`="sd_subj__Intercept"),
-    variable=ordered(variable, levels=c(
-      "Threshold1", "Threshold2", "Threshold3",
-      "Trial", "Stimulation (B0)", 
-      "B1","B2","B3", 
-      "B1 x stimulation", "B2 x stimulation", "B3 x stimulation", 
-      "BV", 
-      "BV x stimulation", 
-      "AE", 
-      "AE x stimulation", 
-      "BV x AE", 
-      "BV x AE x stimulation", 
-      "BV x B1", 
-      "BV x B2", 
-      "BV x B3", 
-      "BV x B1 x stimulation", 
-      "BV x B2 x stimulation", 
-      "BV x B3 x stimulation", 
-      "AE x B1", 
-      "AE x B2", 
-      "AE x B3", 
-      "AE x B1 x stimulation", 
-      "AE x B2 x stimulation", 
-      "AE x B3 x stimulation", 
-      "BV x AE x B1", 
-      "BV x AE x B2", 
-      "BV x AE x B3", 
-      "BV x AE x B1 x stimulation", 
-      "BV x AE x B2 x stimulation", 
-      "BV x AE x B3 x stimulation", 
-      "Sigma (subjects)"))) |> 
-  arrange(variable) |>
-  mutate(group=case_when(variable %in% c("Sigma (subjects)") ~ "Model fit",
-                         T ~ "Coefficients")) |>
-  mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
-         HDI = sprintf("[%.2f, %.2f]", q5, q95),
-         pd = sprintf("%.2f", pd)) |>
-  select(-mean,-q5, -q95)
-
-r2 <- brms::bayes_R2(larg_mod_test)
-lo <- brms::loo(larg_mod_test)$estimates["looic",]
-  
-l_mod_table |> 
-  add_row(variable="R2", pd="", #²
-          b = sprintf("%.2f", r2[1]),
-          HDI = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
-          group="Model fit") |>
-  add_row(variable="LOOIC", pd="", 
-          b = sprintf("%.2f", lo[1]),
-          HDI = sprintf("(SE=%.2f)", lo[2]),
-          group = "Model fit") |>
-  mutate(erat = fmt_APA_numbers(erat, .chr=T)) |>
-  gt(groupname_col = "group") |>
-  cols_move(c(erat, pd), HDI) |>
-  cols_label(
-    b = md("*b*"), 
-    erat = md("ER~b~"),
-    pd = md("*p*~b~")
-  ) |>
-  cols_align("center", 2:6) |>
-  gtsave("tables/large_bayes_model.docx")
-  
 
 # Other         =====
 ## Visualize Bayesian models           =====
@@ -552,37 +444,160 @@ as.data.frame(mod.pfc.mb) |>
 ggsave("figs/prereg/bayesian-model_MB-SMW+block+stim.png", dpi=300, width=6, height=4)
 
 
+### Full Bayesian                 =====
+
+l_mod_table <- 
+  as_tibble(larg_mod_test) |> 
+  select(starts_with("b_"), sd_subj__Intercept) |>
+  gather(variable,val) |>
+  group_by(variable) |>
+  summarize(mean=mean(val), 
+            q5 = hdi(val)[1],
+            q95 = hdi(val)[2],
+            erat = sum(val>0)/sum(val<=0),
+            erat = ifelse(erat<1, 1/erat, erat),
+            pd = ifelse(mean(val < 0) < 0.5, mean(val > 0), mean(val < 0))) |>
+  mutate(variable=fct_recode(
+    variable,
+    Threshold1="b_Intercept[1]", Threshold2="b_Intercept[2]", Threshold3="b_Intercept[3]", 
+    # Block
+    `Stimulation (B0)`="b_stimulationreal",
+    B1="b_blockB1", 
+    B2="b_blockB2", 
+    B3="b_blockB3",
+    `B1 x stimulation`="b_stimulationreal:blockB1", 
+    `B2 x stimulation`="b_stimulationreal:blockB2",
+    `B3 x stimulation`="b_stimulationreal:blockB3", 
+    Trial="b_scaleproberound",  
+    # Behaviour
+    BV = "b_zlogbv", 
+    `BV x stimulation` = "b_zlogbv:stimulationreal", 
+    AE = "b_zlogapen", 
+    `AE x stimulation` = "b_zlogapen:stimulationreal",
+    `BV x AE` = "b_zlogapen:zlogbv",
+    `BV x AE x stimulation` = "b_zlogapen:zlogbv:stimulationreal",
+    # behaviour and block 
+    `BV x B1` = "b_zlogbv:blockB1", 
+    `BV x B2` = "b_zlogbv:blockB2", 
+    `BV x B3` = "b_zlogbv:blockB3",
+    `BV x B1 x stimulation` = "b_zlogbv:stimulationreal:blockB1", 
+    `BV x B2 x stimulation` = "b_zlogbv:stimulationreal:blockB2", 
+    `BV x B3 x stimulation` = "b_zlogbv:stimulationreal:blockB3",
+    `AE x B1` = "b_zlogapen:blockB1", 
+    `AE x B2` = "b_zlogapen:blockB2", 
+    `AE x B3` = "b_zlogapen:blockB3",
+    `AE x B1 x stimulation` = "b_zlogapen:stimulationreal:blockB1", 
+    `AE x B2 x stimulation` = "b_zlogapen:stimulationreal:blockB2", 
+    `AE x B3 x stimulation` = "b_zlogapen:stimulationreal:blockB3",
+    `AE x B1` = "b_zlogapen:blockB1", 
+    `AE x B2` = "b_zlogapen:blockB2", 
+    `AE x B3` = "b_zlogapen:blockB3",
+    `BV x AE x B1` = "b_zlogapen:zlogbv:blockB1",
+    `BV x AE x B2` = "b_zlogapen:zlogbv:blockB2",
+    `BV x AE x B3` = "b_zlogapen:zlogbv:blockB3",
+    `BV x AE x B1 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB1",
+    `BV x AE x B2 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB2",
+    `BV x AE x B3 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB3",
+    `Sigma (subjects)`="sd_subj__Intercept"),
+    variable=ordered(variable, levels=c(
+      "Threshold1", "Threshold2", "Threshold3",
+      "Trial", "Stimulation (B0)", 
+      "B1","B2","B3", 
+      "B1 x stimulation", "B2 x stimulation", "B3 x stimulation", 
+      "BV", 
+      "BV x stimulation", 
+      "AE", 
+      "AE x stimulation", 
+      "BV x AE", 
+      "BV x AE x stimulation", 
+      "BV x B1", 
+      "BV x B2", 
+      "BV x B3", 
+      "BV x B1 x stimulation", 
+      "BV x B2 x stimulation", 
+      "BV x B3 x stimulation", 
+      "AE x B1", 
+      "AE x B2", 
+      "AE x B3", 
+      "AE x B1 x stimulation", 
+      "AE x B2 x stimulation", 
+      "AE x B3 x stimulation", 
+      "BV x AE x B1", 
+      "BV x AE x B2", 
+      "BV x AE x B3", 
+      "BV x AE x B1 x stimulation", 
+      "BV x AE x B2 x stimulation", 
+      "BV x AE x B3 x stimulation", 
+      "Sigma (subjects)"))) |> 
+  arrange(variable) |>
+  mutate(group=case_when(variable %in% c("Sigma (subjects)") ~ "Model fit",
+                         T ~ "Coefficients")) |>
+  mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
+         HDI = sprintf("[%.2f, %.2f]", q5, q95),
+         pd = sprintf("%.2f", pd)) |>
+  select(-mean,-q5, -q95)
+
+r2 <- brms::bayes_R2(larg_mod_test)
+lo <- brms::loo(larg_mod_test)$estimates["looic",]
+
+l_mod_table |> 
+  add_row(variable="R2", pd="", #²
+          b = sprintf("%.2f", r2[1]),
+          HDI = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
+          group="Model fit") |>
+  add_row(variable="LOOIC", pd="", 
+          b = sprintf("%.2f", lo[1]),
+          HDI = sprintf("(SE=%.2f)", lo[2]),
+          group = "Model fit") |>
+  mutate(erat = fmt_APA_numbers(erat, .chr=T)) |>
+  gt(groupname_col = "group") |>
+  cols_move(c(erat, pd), HDI) |>
+  cols_label(
+    b = md("*b*"), 
+    erat = md("ER~b~"),
+    pd = md("*p*~b~")
+  ) |>
+  cols_align("center", 2:6) 
+gtsave("tables/large_bayes_model.docx")
 
 
 
 # WITH  BV & AE
-mod.pfc.test <- brm(probe1 ~ zlogbv * zlogapen + 
-                      blockB1 + blockB1:stimulation + 
-                      blockB2 + blockB2:stimulation + 
-                      blockB3 + blockB3:stimulation + 
-                      zproberound + (1|subj),  data=pfc_t,
-                    init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
-bayes_plot(mod.pfc.test)
+# mod.pfc.test <- brm(probe1 ~ zlogbv * zlogapen + 
+#                       blockB1 + blockB1:stimulation + 
+#                       blockB2 + blockB2:stimulation + 
+#                       blockB3 + blockB3:stimulation + 
+#                       zproberound + (1|subj),  data=pfc_t,
+#                     init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
+# bayes_plot(mod.pfc.test)
+# 
+# add_criterion(mod.pfc.test, criterion = c("loo", "bayes_R2")) -> mod.pfc.test
+# loo_compare(mod.pfc.mw2, mod.pfc.test)
 
-add_criterion(mod.pfc.test, criterion = c("loo", "bayes_R2")) -> mod.pfc.test
-loo_compare(mod.pfc.mw2, mod.pfc.test)
+
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
 
-
 ## Quantify differences using the Bayesian regression models     =====
-pfc |>
-  select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
-  group_by(subj,block,stimulation) |>
-  summarize(MW1=mean(as.numeric(MW1)), MW2=mean(as.numeric(MW2)), MW3=mean(as.numeric(MW3)),
-            AE=mean(AE), BV=mean(BV)) |>
-  mutate(stimulation = factor(stimulation, levels=c("sham", "real"))) -> pfc_data_rdy
+# # Numeric difference
+# pfc |>
+#   select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
+#   group_by(subj,block,stimulation) |>
+#   summarize(
+#     MW1=mean(as.numeric(MW1)), 
+#     MW2=mean(as.numeric(MW2)), 
+#     MW3=mean(as.numeric(MW3)),
+#     AE=mean(AE), 
+#     BV=mean(BV)) |>
+#   mutate(stimulation = factor(stimulation, levels=c("sham", "real"))) -> pfc_data_rdy
 
 
-## other models =====
 
 
+
+## Visualize regression models          =====
+### MW                ======
 as.data.frame(mod.pfc.mw) |> 
   select(starts_with("b_block"), starts_with("b_stimulation")) |> 
   mutate(B0_mw_sham=0,
@@ -601,11 +616,10 @@ as.data.frame(mod.pfc.mw) |>
   stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
   scale_y_continuous(breaks = seq(-1,1,0.1)) + 
   labs(x="", y = "Z-score value") + 
-  theme(legend.position = "none") -> bPlot3  # title="MW5: Common baseline") -> bPlot3
+  theme(legend.position = "none") -> bPlot1
 
 ### BV                  ======
-
-as.data.frame(mod.pfc.mw_no_ae) |> 
+as.data.frame(mod.pfc.bv) |> 
   select(starts_with("b_block"), starts_with("b_stimulation")) |> 
   mutate(B0_mw_sham=0,
          B0_mw_real=0, # b_stimulationreal, 
@@ -621,11 +635,10 @@ as.data.frame(mod.pfc.mw_no_ae) |>
   ggplot(aes(x=block, y=val, color=stimulation))+
   stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
   stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  labs(title="MW3: Stim*block + BV") -> bPlot1
+  labs(title="MW3: Stim*block + BV") -> bPlot2
 
-
-#### Stim*block model    =====
-as.data.frame(mod.pfc.mw) |> 
+### AE                  ======
+as.data.frame(mod.pfc.ae) |> 
   select(starts_with("b_block"), starts_with("b_stimulation")) |> 
   mutate(B0_mw_sham=0,
          B0_mw_real=0, # b_stimulationreal, 
@@ -641,12 +654,14 @@ as.data.frame(mod.pfc.mw) |>
   ggplot(aes(x=block, y=val, color=stimulation))+
   stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
   stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  labs(x = "Block", y = "") -> bPlot2
+  labs(title="MW3: Stim*block + BV") -> bPlot3
 
 
-### Gathered plot           ======
-bPlot1+bPlot2+bPlot3
-ggsave("figs/three_bayes_models.png", width=12, heigh=4)
+if(script_save_figures_tables){
+  ggsave(bPlot1, "figs/bay_mod_MW.jpeg", width = 4, height = 3)
+  ggsave(bPlot2, "figs/bay_mod_BV.jpeg", width = 4, height = 3)
+  ggsave(bPlot3, "figs/bay_mod_AE.jpeg", width = 4, height = 3)
+}
 
 
 
