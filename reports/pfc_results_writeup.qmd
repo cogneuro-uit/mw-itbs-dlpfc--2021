@@ -51,7 +51,7 @@ coef_hdi <- function(x, dir="+"){
           fmt_APA_numbers(ul), 
           dir, 
           fmt_APA_numbers(pval, .p=T),
-          fmt_APA_numbers(dir), 
+          dir, 
           erat
           )
 }
