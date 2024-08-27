@@ -387,6 +387,25 @@ data_fb_coll <-
   )) |>
   select(-name, - split, -true_stim1, -true_stim2) 
 
+# Transformation
+d.pro.stim_pfc |> 
+  mutate(
+    probe1 = ordered(5-as.numeric(probe1)),
+    probe2 = ordered(5-as.numeric(probe2)),
+    probe3 = ordered(5-as.numeric(probe3)),
+    stimulation = factor(stimulation, levels = c("sham", "real"))
+  ) -> pfc
+
+pfc |>  
+  select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
+  group_by(subj,block,stimulation) |>
+  summarize(MW1=mean(as.numeric(MW1)), 
+            MW2=mean(as.numeric(MW2)), 
+            MW3=mean(as.numeric(MW3)), 
+            AE =mean(AE), BV=mean(BV)) |> 
+  ungroup() -> 
+  pfc_anova_data
+
 combined_fb_data <- 
   pfc_anova_data |>
   mutate(.before=1, subj2 = as.integer( str_split(subj, "PFC") |> map_chr(2) ) ) |>
@@ -470,6 +489,7 @@ feedback_diff_tbl <-
     ends_with("p.adj") ~ md("*p*~adj~"), starts_with("e") ~ "",
     ends_with("_bf") ~ md("BF~10~"),
   )
+feedback_diff_tbl
 if(script_save_tables){
   gtsave(feedback_diff_tbl,  "tables/pre-fb-sheet-diff-cond-and-session.docx")
 }
