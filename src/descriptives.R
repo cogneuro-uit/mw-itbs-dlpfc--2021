@@ -3,9 +3,17 @@ library(ProjectTemplate)
 load.project()
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-# Toggles         =====
-script_save_tables <- FALSE
+#' These toggles makes it easy to return the various aspects your might want 
+#' and nevertheless run the whole script without necessarily all the other aspects
+
+# Toggles           =====
 script_save_figures <- FALSE
+#' **TRUE** will save figure 
+#' **FALSE** will *NOT* save figures
+
+script_save_tables <- FALSE
+#' **TRUE** will save tables 
+#' **FALSE** will *NOT* save tables
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
@@ -71,6 +79,7 @@ stimulation_expectation <-
   gt() |>
   cols_move(n, after ="Session 1") |>
   cols_label(n = "")
+
 stimulation_expectation
 if(script_save_tables){
   gtsave(stimulation_expectation, "tables/Stimulation_Expectation.docx")
@@ -142,6 +151,7 @@ guess_table_d <-
               par_sum = "Total", res_sum = "Total",
               b = "", s = "", true_stim="") |>
   cols_move(b, par_sum) 
+
 guess_table_d
 if(script_save_tables){
   gtsave(guess_table_d, "tables/Blinding_Guesses_for_Participants_and_Researchers.docx")  
@@ -226,7 +236,8 @@ demo_pfc |>
 
 ### Descriptives       =====
 # Mean confidence rating across participant and researcher for real and sham. 
-r_p_conf |>
+confidence_in_guesses <-
+  r_p_conf |>
   select(-name) |>
   summarise(
     .by = c(res, true_stim, session),
@@ -252,14 +263,17 @@ r_p_conf |>
   cols_move(e1, sd_Participant_0) |>
   cols_move(e2, sd_Participant_1) |>
   cols_move(e3, sd_Researcher_0) 
-# |> gtsave("tables/confidence_in_guesses.docx")
+
+if(script_save_tables){
+  gtsave(confidence_in_guesses, "tables/confidence_in_guesses.docx")
+}
 
 ### Tests       =====
 #### PER STARTING CONDITION  (crossover)      =====
 ##### Between STIM          ====
 r_p_conf |>
-  mutate(true_stim=ifelse(true_stim==1,"T"))
-  pivot_longer(c(session, true_stim))
+  # mutate(true_stim=ifelse(true_stim==1,"T", "F")) |>
+  # pivot_longer(c(session, true_stim)) |>
   select(-name) |>
   summarise(
     .by = c(session, res),
@@ -489,12 +503,11 @@ feedback_diff_tbl <-
     ends_with("p.adj") ~ md("*p*~adj~"), starts_with("e") ~ "",
     ends_with("_bf") ~ md("BF~10~"),
   )
+
 feedback_diff_tbl
 if(script_save_tables){
-  gtsave(feedback_diff_tbl,  "tables/pre-fb-sheet-diff-cond-and-session.docx")
+  gtsave(feedback_diff_tbl, "tables/pre-fb-sheet-diff-cond-and-session.docx")
 }
-
-
 
 #   Adverse effects of the stimulation          ======
 tms_checklist_stim_diff <-
@@ -642,14 +655,15 @@ tms_adverse_outcome_tbl <-
     )
   )
 
+tms_adverse_outcome_tbl
 if(script_save_tables){
   gtsave(tms_adverse_outcome_tbl, "tables/adverse_outcomes_table-V2.docx")
 }
 
 ##  Figures    ======
-# Symptom report
+### Symptom report    =====
 p1 <-
-tms_checklist_stim_diff |> 
+  tms_checklist_stim_diff |> 
   filter(!str_detect(name, "_TMS")) |>
   mutate( name = str_replace_all(name, "_TMS", ""),
           name = str_replace_all(name, "_", " "),
@@ -674,9 +688,13 @@ tms_checklist_stim_diff |>
   scale_x_continuous(breaks = 1:5, 
                      labels = c("(1) No ", "(2) Unlikely", "(3) Possible", "(4) Probable", "(5) Definitively")) +
   labs(y="Symptom", x = "", title = "A) Side-effect report")
-#ggsave("figs/TMS_Checklist/symptom_report.svg", p1,  height = 5, width = 10)
 
-# Relation to TMS
+p1
+if(script_save_figures){
+  ggsave("figs/TMS_Checklist_figure_symptom.svg", p1, height = 5, width = 10) 
+}
+
+### Relation to TMS   =====
 p2 <-
   tms_checklist_stim_diff |> 
   filter(str_detect(name, "_TMS")) |>
@@ -704,7 +722,7 @@ p2 <-
                      labels = c("(1) No ", "(2) Unlikely", "(3) Possible", "(4) Probable", "(5) Definitively")) +
   labs(y="Symptom", x = "Response", title = "B) Relation to TMS")
 
+p2
 if(script_save_figures){
-  ggsave(p1, "figs/TMS_Checklist_figure_symptom.svg")
-  ggsave(p2, "figs/TMS_Checklist_figure_tms.svg")
+  ggsave("figs/TMS_Checklist_figure_tms.svg", p2, height = 5, width = 10)
 }
