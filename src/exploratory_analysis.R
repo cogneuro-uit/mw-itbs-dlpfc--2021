@@ -1,16 +1,26 @@
 library(ProjectTemplate)
+# migrate.project() # you might need to run this. 
 load.project()
 
 # Exploratory analyses
 
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-script_save_tables <- FALSE
-  #' Tables are saved to "tables" folder.
+#' These toggles makes it easy to return the various aspects your might want 
+#' and nevertheless run the whole script without necessarily all the other aspects
+
+# Toggles           =====
 script_save_figures <- FALSE
+#' **TRUE** will save figure 
+#' **FALSE** will *NOT* save figures
+
+script_save_tables <- FALSE
+#' **TRUE** will save tables 
+#' **FALSE** will *NOT* save tables
   
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
-# prep
+# Prepare data:
 # Reverse the probes (higher value correspond to the probe Q)
 d.pro.stim_pfc |> 
   mutate(
@@ -28,7 +38,9 @@ d.pro.stim_pfc |>
 
 # Pre-test      =====
 ## TMS expectation =====
-# prep data
+# Test whether the expectation of the effect of the stimulation had an effect (?) 
+
+### Prepare the data    ======
 pfc |> 
   mutate(subj2 = as.numeric( str_split(subj, "PFC") |> map_chr(2)) ) |>
   summarise(
@@ -52,6 +64,8 @@ pfc |>
 #' 3 = "Yes, but not how" 
 #' 4 = "Don't know"
 
+
+### Table         =======
 tms_expectation_tbl <- 
   pfc_exp_sum |>
   filter(expectation %in% c(0, 1, 2)) |>
@@ -104,9 +118,10 @@ tms_expectation_tbl
 if(script_save_tables){
   gtsave(tms_expectation_tbl, "tables/tms_expectation_table.docx")
 }
-  
+
+
 ##  Music & Meditation        =====
-# get data
+### Prepare the data          =====
 m_m_data <- 
   pfc |> 
   pivot_longer(c(meditation1, music_year1), names_to = "cat", values_to="cat_val") |>
@@ -119,7 +134,7 @@ m_m_data <-
     bv = mean(zlogbv)) |>
   pivot_longer(c(mw,bv,ae))
 
-### Tabel     =====
+### Table                    =====
 music_meditation_tbl <- 
   m_m_data |>
   summarise(
@@ -136,8 +151,8 @@ music_meditation_tbl <-
   ) |> 
   mutate(.by = cat, p.adj = p.adjust(p, "bonferroni")) |> 
   mutate(
-    across(contains("p"), ~fmt_APA_numbers(.x,.p=T)),
-    across(where(is.double), ~fmt_APA_numbers(.x)),
+    across( contains("p"), ~fmt_APA_numbers(.x, .p = T) ),
+    across( where(is.double), ~fmt_APA_numbers(.x) ),
     name = fct_recode(name, MW="mw", BV="bv", AE="ae"),
     cat = fct_recode(cat, Meditation="meditation1", Music="music_year1"),
     e="", e2="", 
@@ -157,34 +172,45 @@ music_meditation_tbl <-
   cols_move(e, m0_sd) |>
   cols_move(e2, m1_sd) |>
   cols_align("center")
+
 music_meditation_tbl
 if(script_save_tables){
   gtsave(music_meditation_tbl, "tables/meditation_and_musical_experience.docx")
 }
 
 ### Figure      =====
-m_m_data |>
+m_m_figure <- 
+  m_m_data |>
   mutate(
     cat_v = factor(cat_v, label=c("No", "Any")),
-    cat = ifelse(cat=="meditation1", "Meditation", "Music"),
-    name = fct_recode(name, AE="ae", BV="bv", MW="mw") |> 
+    cat   = ifelse(cat=="meditation1", "Meditation", "Music"),
+    name  = fct_recode(name, AE="ae", BV="bv", MW="mw") |> 
       fct_relevel("MW","BV","AE")
   ) |>
+  # pivot_wider(values_from=c(value), names_from=cat_v, names_expand = T)
   rename(Experience = cat_v) |>
   ggplot(aes(Experience, value, col=Experience)) + 
   facet_wrap(cat~name) +
   stat_summary(fun.data=mean_se) + 
   labs(y="Standardized values") +
   geom_hline(yintercept=0, linetype="dashed") + 
-  theme(legend.position = "none")
+  theme(legend.position = "none") 
+
+m_m_figure
 if(script_save_figures){
-  ggsave("figs/exploratory/meditation_and_music.svg")
+  ggsave(m_m_figure, "figs/exploratory/meditation_and_music.svg")
 }
 
-# Post      =====
+
+
+# Post-test      =====
 
 ## Accumulating effects of TMS      =====
-# table
+###  Frequentist statistics         =====
+
+#' **NOT USED**
+
+#### Table                           ======
 accumen_data_tbl <- 
   pfc |>
   mutate(probe1_n = as.integer(probe1)) |>
@@ -258,6 +284,8 @@ accumen_tbl <-
   cols_move(ends_with("MW"), name) |>
   cols_move(ends_with("BV"), bf10_MW) |>
   cols_move(e, bf10_MW) |>
+  cols_move(d_MW, p.adj_MW ) |>
+  cols_move(d_BV, p.adj_BV ) |>
   cols_move(e2, bf10_BV) |>
   cols_label(
     starts_with("m_") ~ md("*M*~diff~"),
@@ -267,25 +295,82 @@ accumen_tbl <-
     starts_with("p_") ~ md("*p*"),
     starts_with("p.adj_") ~ md("*p*~adj~"),
     starts_with("bf10_") ~ md("BF~10~"),
-    starts_with("e") ~ ""
+    starts_with("e") ~ "",
+    starts_with("d_") ~ md("*d*")
   )
 
+accumen_tbl
+# if(script_save_tables){
+#   gtsave(accumen_tbl, "tables/accumulating effect of the tms.docx")
+# }
+
+
+###  Bayesian statistics               ======
+
+# Based on the bayesian models done previously.
+
+# Visualize whether the blocks are different
+as_tibble(mod.pfc.mw) |>
+  mutate(dep="MW") |>
+  bind_rows(as_tibble(mod.pfc.bv) |> mutate(dep="BV")) |>
+  bind_rows(as_tibble(mod.pfc.ae) |> mutate(dep="AE")) |>
+  mutate(
+    .before = 1,
+    diffB1_B0 = `b_stimulationreal:blockB1` - 0,
+    diffB2_B1 = `b_stimulationreal:blockB2` - `b_stimulationreal:blockB1`,
+    diffB3_B2 = `b_stimulationreal:blockB3` - `b_stimulationreal:blockB2`,
+  ) |>
+  pivot_longer(c(diffB1_B0, diffB2_B1, diffB3_B2))  |>
+  ggplot(aes(value)) +
+  facet_wrap(dep~name) +
+  geom_histogram() +
+  geom_vline(xintercept = 0, col = "red")
+
+
+# Test whether they the blocks are different
+accumen_bays_tbl <- 
+  as_tibble(mod.pfc.mw) |>
+  mutate(dep="MW") |>
+  bind_rows(as_tibble(mod.pfc.bv) |> mutate(dep="BV")) |>
+  bind_rows(as_tibble(mod.pfc.ae) |> mutate(dep="AE")) |>
+  mutate(
+    .before = 1,
+    diffB1_B0 = `b_stimulationreal:blockB1` - 0,
+    diffB2_B1 = `b_stimulationreal:blockB2` - `b_stimulationreal:blockB1`,
+    diffB3_B2 = `b_stimulationreal:blockB3` - `b_stimulationreal:blockB2`,
+  ) |>
+  pivot_longer(c(diffB1_B0, diffB2_B1, diffB3_B2)) |>
+  summarise(
+    .by = c(dep, name), 
+    m   = mean(value) |> fmt_APA_numbers(num=_), 
+    HDI = bay_hdi(value),
+    ER  = bay_er(value),
+    p   = bay_p(value),
+    e ="",
+    e2="", 
+  )  |>
+  mutate(
+    name = ifelse(name=="diffB1_B0", "B1-B0", ifelse(name=="diffB2_B1", "B2-B1", "B3-B2"))
+  ) |>
+  pivot_wider(names_from=dep, values_from=c(m, HDI, ER, p)) |>
+  gt() |>
+  tab_spanner("Mind Wandering", ends_with("_MW")) |>
+  tab_spanner("Behavioural variability", ends_with("_BV")) |>
+  tab_spanner("Approximate entropy", ends_with("_AE")) |>
+  cols_move(e, p_MW) |>
+  cols_move(e2, p_BV) |>
+  cols_align("center",c(everything(), -name)) |>
+  cols_label(
+    starts_with("m_")  ~ md("*M*"),
+    starts_with("HDI_") ~ "HDI",
+    starts_with("ER") ~ md("ER~dir~"),
+    starts_with("p_") ~ md("*p*"),
+    e="",e2="",
+  )
+
+accumen_bays_tbl
 if(script_save_tables){
-  gtsave(accumen_tbl, "tables/accumulating effect of the tms.docx")
+  gtsave(accumen_bays_tbl, "tables/Bayesian test of accumulating effects.docx")
 }
 
 
-# test vis
-accumen_data_tbl |>
-  ggplot(aes(name, value)) + 
-  facet_wrap(~variable) +
-  stat_summary(aes(group=subj), position = position_jitter(.15, seed = 147), alpha =.1) +
-  stat_summary(aes(group=subj), geom = "line", position = position_jitter(.15, seed = 147), alpha =.1) +
-  stat_summary(col="red")+
-  stat_summary(geom="line")
-
-accumen_data_tbl |>
-  ggplot(aes(name, value)) + 
-  facet_wrap(~variable) +
-  stat_summary(col="red")+
-  stat_summary(geom="line")
