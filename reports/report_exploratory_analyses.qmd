@@ -1,0 +1,110 @@
+---
+title: "Report for exploratory reporting"
+format: docx
+---
+
+```{r, echo=F, warning=F, message=F, include=FALSE}
+library(tidyverse)
+library(gt)
+
+source("../lib/fmt_APA.R")
+source("../lib/mcmc.R")
+load("../data/export/paper_vars.RData")
+
+coef_hdi <- function(x){
+  dir="+"
+  m = fmt_APA_numbers( mean(x), .chr=T )
+  # ll <- hdi(x)[1]
+  # ul <- hdi(x)[2]
+  ll  = fmt_APA_numbers( quantile(x, 0.025)[[1]], .chr=T )
+  ul  = fmt_APA_numbers( quantile(x, 0.975)[[1]], .chr=T )
+  erat = sum(x>0)/sum(x<=0)
+  pval = sum(x>0)/length(x)
+
+  if(m<0){
+    erat=1./erat
+    pval=1-pval
+    dir="-"
+  }
+  if(is.infinite(erat)){
+    erat=ifelse(erat<0, "-\\infty", "\\infty")
+  } else {
+    erat=erat
+  }
+  pval = fmt_APA_numbers(pval, .p=T)
+  erat = fmt_APA_numbers(erat, .chr=T)
+
+  sprintf(
+    "$M=%s, [%s, %s], p^{%s}=%s, \\text{ER}^{%s}=%s$", 
+    m, ll, ul, dir, pval, dir, erat)
+}
+
+```
+
+
+# Reporting accumulating effects: 
+
+## MW: 
+```{r, include=FALSE}
+acc_mw <- 
+  as_tibble(mod.pfc.mw) |>
+    mutate(
+    .before = 1,
+    diffB1_B0 = `b_stimulationreal:blockB1` - 0,
+    diffB2_B1 = `b_stimulationreal:blockB2` - `b_stimulationreal:blockB1`,
+    diffB3_B2 = `b_stimulationreal:blockB3` - `b_stimulationreal:blockB2`,
+  ) |> as.matrix(x=_)
+```
+\n
+B1-B0: `r coef_hdi( acc_mw[,"diffB1_B0"] )`   
+
+\n
+B2-B1: `r coef_hdi(acc_mw[,"diffB2_B1"])`   
+\n
+\n
+B3-B2: `r coef_hdi(acc_mw[,"diffB3_B2"])`   
+\n
+
+
+## BV
+```{r, include=FALSE}
+acc_bv <-
+  as_tibble(mod.pfc.bv) |>
+    mutate(
+    .before = 1,
+    diffB1_B0 = `b_stimulationreal:blockB1` - 0,
+    diffB2_B1 = `b_stimulationreal:blockB2` - `b_stimulationreal:blockB1`,
+    diffB3_B2 = `b_stimulationreal:blockB3` - `b_stimulationreal:blockB2`,
+  ) |> as.matrix(x=_)
+```
+\n
+B1-B0: `r coef_hdi(acc_bv[,"diffB1_B0"])` 
+\n 
+
+B2-B1: `r coef_hdi(acc_bv[,"diffB2_B1"])` 
+\n 
+
+B3-B2: `r coef_hdi(acc_bv[,"diffB3_B2"])` 
+\n
+
+
+## AE
+```{r, include=FALSE}
+acc_ae <-
+  as_tibble(mod.pfc.ae) |>
+    mutate(
+    .before = 1,
+    diffB1_B0 = `b_stimulationreal:blockB1` - 0,
+    diffB2_B1 = `b_stimulationreal:blockB2` - `b_stimulationreal:blockB1`,
+    diffB3_B2 = `b_stimulationreal:blockB3` - `b_stimulationreal:blockB2`,
+  ) |> as.matrix(x=_)
+```
+
+B1-B0: `r coef_hdi(acc_ae[,"diffB1_B0"])`  
+\n
+
+B2-B1: `r coef_hdi(acc_ae[,"diffB2_B1"])`  
+\n
+
+B3-B2: `r coef_hdi(acc_ae[,"diffB3_B2"])`  
+\n
