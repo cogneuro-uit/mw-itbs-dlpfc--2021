@@ -1,3 +1,4 @@
+# Format numbers to APA standard
 fmt_APA_numbers <- function(num, .p = FALSE, .psym = FALSE, .low_val = FALSE, .chr = FALSE){
   require(purrr)
   
@@ -11,6 +12,8 @@ fmt_APA_numbers <- function(num, .p = FALSE, .psym = FALSE, .low_val = FALSE, .c
       # if is not numeric after transformation, return original
     }
     
+    # p with symbol
+    # = symbol:
     if(.psym){
       if(num < .001){
         return("< .001")
@@ -18,34 +21,71 @@ fmt_APA_numbers <- function(num, .p = FALSE, .psym = FALSE, .low_val = FALSE, .c
         return( round(num, 3) |> as.character() |> str_replace("0.", "= ") )
       }
     }
+    
+    # < than symbol
     if(.p){
-      if(num < .001){
-        return("< .001")
+      if(num < .001){ 
+        return( "< .001" )
       } else {
-        return( round(num, 3) |> as.character() |> str_replace("0.", ".") )
+        num <- round(num, 3) |> as.character() |> str_replace("0.", ".")
+        if(str_length(num) <= 3){
+          for(x in 1:(4 - str_length( num)) ){
+            num <- paste0(num, "0")
+          }
+        }
+        return( num ) 
       }
     }
     
-    # NORMAL VALS
+    # > 100
     if(num >= 100 | num <= -100){
-      num <- round(num, 0)
+      if(.chr){
+        return( as.character(num) ) 
+      }
+      return( round(num, 0) )
     }
+    # > 10
     if(num >= 10 | num <= -10){
       num <- round(num, 1)
+      # Add an extra 0 using strings to return tidy APA numbers 
+      if(.chr & str_length( as.character( abs(num) ) ) == 2){
+        num <- paste0(num, ".0") # if exactly two, always add .0
+      }
+      return( num )
     }
     
-    # IF LOW VALUES
+    # > 1  | > 1 & .low_val
     if(num >= 1 | num <= -1 | num < 1 & !.low_val | num > -1 & !.low_val){
       num <- round(num, 2)
+      
+      # Add an extra 0 using strings to return tidy APA numbers 
+      if(.chr & str_length( as.character( abs(num) ) ) <= 3){
+        for(x in 1:(4 - str_length( as.character( abs(num) ) )) ){
+          if(str_detect(num,"\\.", negate = TRUE)){
+            num <- paste0(num, ".")
+          } else{
+            num <- paste0(num, "0")
+          }
+        }
+      }
+      return( num )
     }
+    
+    # Low values 
     if(num < 1 & .low_val | num > -1 & .low_val){
       num <- round(num, 3)
-    }
-    # IF .chr
-    if(.chr){
-      return( as.character(num) )
-    } else {
-      return( num )
+      
+      # Add an extra 0 using strings to return tidy APA numbers 
+      if(.chr & str_length( as.character( abs(num) ) ) <= 4){
+        for(x in 1:(5 - str_length( as.character( abs(num) ) )) ){
+          if(str_detect(num,"\\.", negate = TRUE)){
+            num <- paste0(num, ".")
+          } else{
+            num <- paste0(num, "0")
+          }
+        }
+      }
+      return ( num )
     }
   }) |> unlist()
 }
