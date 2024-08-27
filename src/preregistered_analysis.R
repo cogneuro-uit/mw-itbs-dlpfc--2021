@@ -3,18 +3,42 @@ library(ProjectTemplate)
 load.project()
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+#' These toggles makes it easy to return the various aspects your might want 
+#' and nevertheless run the whole script without necessarily all the other aspects
 
 # Toggles           =====
-script_load_bayesian_data <- TRUE 
-  #' TRUE will load the saved Bayesian models in (paper_vars) 
-  #' FALSE will NOT load any Bayesian models, and will therefore RUN all Bayesian models. 
-script_save_figures_tables <- TRUE
-  #' !!! This is not completed !!!
-  #' TRUE will save figure and tables 
+script_save_with_date_time <- TRUE
+  #' **TRUE** will save all generated output with a date and time. 
+  #' This way you will not append previously generated data 
+  #' **FALSE** will not save the generated output with a date and time.
+  #' *CAUSTION* This feature might append previously generated data/tables/pictures
 
+script_run_bayesian_models <- FALSE 
+  #' **TRUE** will **RUN** the Bayesian models.
+  #' Depending on your computer, this might take some time. 
+  #' **FALSE** will **NOT RUN** any Bayesian models, but will load them 
+  #' from "export/paper_vars.RData".
+
+script_save_bayesian_data <- FALSE
+  #' **TRUE** will SAVE the generated Bayesian models.¤
+  #' **FALSE** will NOT SAVE the generated Bayesian models.¤
+  #' ¤ *if the "script_run_bayesian_models" is set to* **TRUE**.
+
+script_save_figures <- TRUE
+  #' **TRUE** will save figure 
+  #' **FALSE** will *NOT* save figures
+
+script_save_tables <- TRUE
+  #' **TRUE** will save tables 
+  #' **FALSE** will *NOT* save tables
+  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
-
+if(script_save_with_date_time){
+  toggle_date_time <- format( Sys.time(), "%Y-%m-%d_%H-%M-%S_")
+} else {
+  toggle_date_time <- NULL
+}
 
 # Bayesian plotting function
 bayes_plot <- function( data_list, variables = NULL ){
@@ -103,7 +127,8 @@ anova(aov_ae, es="pes")
 aov_ae |> summary()
 
 ### Table         ======
-pfc_anova_data |>
+anova_descriptives <- 
+  pfc_anova_data |>
   summarise(
     .by = c(stimulation, block),
     MW_m = mean(MW1),
@@ -138,7 +163,11 @@ pfc_anova_data |>
   cols_move(e4, MW_sd_real) |>
   cols_move(e5, BV_sd_real) |>
   cols_move(e6, AE_sd_real) 
-  gtsave("tables/anova_descriptives.docx")
+
+anova_descriptives
+if(script_save_tables){
+  gtsave(anova_descriptives, paste0("tables/", toggle_date_time, "anova_descriptives.docx"))
+}
 
 ###  Contrasts     =====
 #' Because we found no interaction between block and stimulation , we do not 
@@ -173,7 +202,8 @@ with(filter(pfc_t, variable=="BV", block=="B3"),
 # Plots                            ======
 ## Effect over block and stimulation:         =====
 # Transform the data for visualization.
-pfc |>
+pfc_t <- 
+  pfc |>
   mutate(probe1_n = as.integer(probe1)) |>
   select(subj, region, stimulation, block, proberound, zlogapen, zlogbv, probe1_n) |>
   pivot_longer(c(zlogapen, zlogbv, probe1_n), names_to="name", values_to = "val") |> 
@@ -193,11 +223,12 @@ pfc |>
   select(-ends_with("zlogapen"), -ends_with("zlogbv"), -ends_with("probe1_n")) |>
   pivot_longer(starts_with("B"), names_to = c("block","variable"), names_sep = "_") |> 
   mutate(variable=fct_recode(variable, AE="ae",BV="bv",MW="mw"),
-         variable=factor(variable, levels=c("MW","BV","AE"))) -> pfc_t
+         variable=factor(variable, levels=c("MW","BV","AE")))
 
 
 ###  MW, BV and AE          ======
-pfc_t |>
+mw_bv_ae_plot <- 
+  pfc_t |>
   mutate(variable=fct_recode(variable, `Approximate Entropy`="AE",
                              `Behavioural Variability`="BV", `Mind Wandering`="MW"),
          Stimulation = fct_recode( factor(stimulation, levels=c("real","sham")),
@@ -222,9 +253,14 @@ pfc_t |>
       c("Mind Wandering", "Behavioural Variability", "Approximate Entropy"),
       levels = c("Mind Wandering", "Behavioural Variability", "Approximate Entropy")),
       lab = c("a)","b)","c)")),
-    aes("B0", .29, col = NULL, group=NULL, label = lab), size = 5, show.legend = F)
-  theme(legend.position = "top", legend.direction = "horizontal") # -> p1
-ggsave("figs/prereg/descriptive_MW-BV-AE+block+stim-v4.svg", dpi=300, width=6.5, heigh=3.5)
+    aes("B0", .29, col = NULL, group=NULL, label = lab), size = 5, show.legend = F)+
+  theme(legend.position = "top", legend.direction = "horizontal") 
+  
+mw_bv_ae_plot
+if(script_save_figures){
+  ggsave(paste0("figs/prereg/", toggle_date_time, "descriptive_MW-BV-AE+block+stim.svg"),
+         mw_bv_ae_plot, dpi=300, width=6.5, heigh=3.5)
+}
 
 
 ### MB and S-MW             =====
@@ -255,7 +291,8 @@ pfc |>
   mutate(variable=fct_recode(variable, MB="mb", `SMW`="smw")) -> data.probe.cond.diff4
 
 # Plot for MB & SMW
-data.probe.cond.diff4 |>
+mb_smw_plot <- 
+  data.probe.cond.diff4 |>
   filter(variable %in% c("MB", "SMW")) |>
   mutate(variable = ifelse(variable=="MB", "Mind Blanking", "Spontaneous Mind Wandering"),
          Stimulation=ifelse(stimulation=="real","Real","Sham")) |>
@@ -268,7 +305,12 @@ data.probe.cond.diff4 |>
   facet_grid(~ variable) +
   theme_bw()
   # theme(legend.position ="top", legend.direction = "horizontal")+
-ggsave(filename ="figs/prereg/descriptive_MB-SMW+block+stim-v2.svg", dpi = 300, width=6, height=3.5)
+mb_smw_plot
+if(script_save_figures){
+  ggsave(
+    paste0("figs/prereg/",toggle_date_time,"descriptive_MB-SMW+block+stim.svg"),
+    mb_smw_plot, dpi = 300, width=6, height=3.5)
+}
 
 
 # Bayesian models     ======
@@ -328,7 +370,6 @@ if(!script_load_bayesian_data){
   mod.pfc.bv  <- brms::add_criterion(mod.pfc.bv,  criterion = c("bayes_R2", "loo"))
   mod.pfc.mb  <- brms::add_criterion(mod.pfc.mb,  criterion = c("bayes_R2", "loo"))
   mod.pfc.smw <- brms::add_criterion(mod.pfc.smw, criterion = c("bayes_R2", "loo"))
-  save(mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, file="data/export/paper_vars.RData")
   
   ## Full Bayesian model            =====
   brm(
@@ -337,7 +378,18 @@ if(!script_load_bayesian_data){
   ) -> larg_mod_test
   bayes_plot(larg_mod_test)
   
-  save(larg_mod_test, file = "data/export/paper_large_model.Rdata")
+  if(script_save_bayesian_data){
+    save(
+      mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, 
+      file=paste0("data/export/", toggle_date_time, "paper_vars.RData")
+    )
+    save(larg_mod_test, file = paste0("data/export/", toggle_date_time, "paper_large_model.Rdata"))
+    
+  } 
+  
+  if(!script_save_bayesian_data)
+    warning("BAYESIAN SIMULATION HAS BEEN RUN, BUT NOT SAVED.")
+  }
 }
 
 if(script_load_bayesian_data){
@@ -349,7 +401,8 @@ if(script_load_bayesian_data){
 # Other         =====
 ## Visualize Bayesian models           =====
 ###  MW, BV & AE                =====
-as.data.frame(mod.pfc.mw) |> 
+mw_bv_ae_bay_plot <- 
+  as.data.frame(mod.pfc.mw) |> 
   select(starts_with("b_block"), starts_with("b_stimulation")) |> 
   rename_with(~paste0("mw_", .x)) |> 
   # combine:
@@ -383,7 +436,7 @@ as.data.frame(mod.pfc.mw) |>
          B2_ae_sham = ae_b_blockB2,
          B2_ae_real = ae_b_blockB2+`ae_b_stimulationreal:blockB2`,
          B3_ae_sham = ae_b_blockB3,
-         B3_ae_real = ae_b_blockB3+`ae_b_stimulationreal:blockB3`) 
+         B3_ae_real = ae_b_blockB3+`ae_b_stimulationreal:blockB3`) |>
   select(starts_with("B", ignore.case = F)) |>
   pivot_longer( everything() ) |>
   separate_wider_delim(name, delim = "_", names = c("block", "var", "stimulation")) |>
@@ -393,16 +446,22 @@ as.data.frame(mod.pfc.mw) |>
          var = factor(var, levels = c("MW", "BV", "AE")),
          stimulation = factor( stimulation, levels = c("sham", "real")))  |>
   ggplot(aes( x = block, y = value, color = stimulation )) +
+  geom_hline(yintercept=0, linetype = "dashed") +
   stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
-  stat_summary(fun.data = median_hdi, geom="pointrange", position=position_dodge(width=0.2)) 
-geom_hline(yintercept=0, linetype = "dashed") +
+  stat_summary(fun.data = mean_hdci, geom="pointrange", position=position_dodge(width=0.2)) +
   scale_y_continuous( breaks = seq(-1,1, 0.1) ) +
   facet_wrap( ~ var ) +
   labs(y  = "", title = "b)")
 
+mw_bv_ae_bay_plot
+if(script_save_figures){
+  ggsave(paste0("figs/prereg/",toggle_date_time,"bayesian-model_MW-BV-AE+block+stim.png"),
+         mw_bv_ae_bay_plot, dpi=300, width=6, height=4)
+}
 
 ###    MB & SMW        =====
-as.data.frame(mod.pfc.mb) |> 
+mb_smw_bay_plot <- 
+  as.data.frame(mod.pfc.mb) |> 
   select(starts_with("b_block"), starts_with("b_stimulation")) |> 
   rename_with(~paste0("mb_", .x)) |> 
   # combine:
@@ -437,11 +496,16 @@ as.data.frame(mod.pfc.mb) |>
   ggplot(aes( x = block, y = value, color = stimulation ))+
   geom_hline(yintercept=0, linetype = "dashed") +
   labs(y  = "", title = "b)") +
-  stat_summary(fun.data=mean_qi, geom="pointrange", position=position_dodge(width=0.2))+
+  stat_summary(fun.data = mean_hdci, geom="pointrange", position=position_dodge(width=0.2))+
   stat_summary(fun=mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2))+
   scale_y_continuous( breaks = seq(-1,1, 0.1) ) +
   facet_wrap( ~ var )
-ggsave("figs/prereg/bayesian-model_MB-SMW+block+stim.png", dpi=300, width=6, height=4)
+
+mb_smw_bay_plot
+if(script_save_figures){
+  ggsave(paste0("figs/prereg/",toggle_date_time,"bayesian-model_MB-SMW+block+stim.png"),
+         mb_smw_bay_plot, dpi=300, width=6, height=4)
+}
 
 
 ### Full Bayesian                 =====
@@ -540,7 +604,8 @@ l_mod_table <-
 r2 <- brms::bayes_R2(larg_mod_test)
 lo <- brms::loo(larg_mod_test)$estimates["looic",]
 
-l_mod_table |> 
+l_mod_table_last <- 
+  l_mod_table |> 
   add_row(variable="R2", pd="", #²
           b = sprintf("%.2f", r2[1]),
           HDI = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
@@ -558,7 +623,11 @@ l_mod_table |>
     pd = md("*p*~b~")
   ) |>
   cols_align("center", 2:6) 
-gtsave("tables/large_bayes_model.docx")
+
+l_mod_table_last
+if(script_save_tables){
+  gtsave(l_mod_table_last, paste0("tables/",toggle_date_time, "large_bayes_model.docx"))
+}
 
 
 
@@ -658,10 +727,7 @@ as.data.frame(mod.pfc.ae) |>
 
 
 if(script_save_figures_tables){
-  ggsave(bPlot1, "figs/bay_mod_MW.jpeg", width = 4, height = 3)
-  ggsave(bPlot2, "figs/bay_mod_BV.jpeg", width = 4, height = 3)
-  ggsave(bPlot3, "figs/bay_mod_AE.jpeg", width = 4, height = 3)
+  ggsave(bPlot1, paste0("figs/", toggle_date_time, "bay_mod_MW.jpeg"), width = 4, height = 3)
+  ggsave(bPlot2, paste0("figs/", toggle_date_time, "bay_mod_BV.jpeg"), width = 4, height = 3)
+  ggsave(bPlot3, paste0("figs/", toggle_date_time, "bay_mod_AE.jpeg"), width = 4, height = 3)
 }
-
-
-
