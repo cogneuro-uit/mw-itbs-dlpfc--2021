@@ -1,13 +1,29 @@
 library(ProjectTemplate)
-# migrate.project() # you might need to run this. 
+# migrate.project() # you might need to run this before everything loads properly. 
 load.project()
 
 # Exploratory analyses
 
-
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 #' These toggles makes it easy to return the various aspects your might want 
 #' and nevertheless run the whole script without necessarily all the other aspects
+
+script_save_with_date_time <- TRUE
+#' **TRUE** will save all generated output with a date and time. 
+#' This way you will not append previously generated data 
+#' **FALSE** will not save the generated output with a date and time.
+#' *CAUSTION* This feature might append previously generated data/tables/pictures
+
+script_run_bayesian_models <- FALSE 
+#' **TRUE** will **RUN** the Bayesian models.
+#' Depending on your computer, this might take some time. 
+#' **FALSE** will **NOT RUN** any Bayesian models, but will load them 
+#' from "export/paper_vars.RData".
+
+script_save_bayesian_models <- FALSE
+#' **TRUE** will SAVE the generated Bayesian models.¤
+#' **FALSE** will NOT SAVE the generated Bayesian models.¤
+#' ¤ *if the "script_run_bayesian_models" is set to* **TRUE**.
 
 # Toggles           =====
 script_save_figures <- FALSE
@@ -19,6 +35,12 @@ script_save_tables <- FALSE
 #' **FALSE** will *NOT* save tables
   
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+if(script_save_with_date_time){
+  toggle_date_time <- format( Sys.time(), "%Y-%m-%d_%H-%M-%S_")
+} else {
+  toggle_date_time <- NULL
+}
 
 # Prepare data:
 # Reverse the probes (higher value correspond to the probe Q)
@@ -116,12 +138,12 @@ tms_expectation_tbl <-
 tms_expectation_tbl
 
 if(script_save_tables){
-  gtsave(tms_expectation_tbl, "tables/tms_expectation_table.docx")
+  gtsave(tms_expectation_tbl, paste0("tables/",toggle_date_time,"tms_expectation_table.docx"))
 }
 
 
 ##  Music & Meditation        =====
-### Prepare the data          =====
+### Frequentist - prepare the data          =====
 m_m_data <- 
   pfc |> 
   pivot_longer(c(meditation1, music_year1), names_to = "cat", values_to="cat_val") |>
@@ -134,7 +156,7 @@ m_m_data <-
     bv = mean(zlogbv)) |>
   pivot_longer(c(mw,bv,ae))
 
-### Table                    =====
+#### Table                    =====
 music_meditation_tbl <- 
   m_m_data |>
   summarise(
@@ -175,10 +197,10 @@ music_meditation_tbl <-
 
 music_meditation_tbl
 if(script_save_tables){
-  gtsave(music_meditation_tbl, "tables/meditation_and_musical_experience.docx")
+  gtsave(music_meditation_tbl, paste0("tables/",toggle_date_time,"meditation_and_musical_experience.docx"))
 }
 
-### Figure      =====
+#### Figure      =====
 m_m_figure <- 
   m_m_data |>
   mutate(
@@ -198,10 +220,123 @@ m_m_figure <-
 
 m_m_figure
 if(script_save_figures){
-  ggsave(m_m_figure, "figs/exploratory/meditation_and_music.svg")
+  ggsave(m_m_figure, paste0("figs/exploratory/",toggle_date_time,"meditation_and_music.svg"))
 }
 
+### Bayesian        ====
+#### Models         ====
+if(script_run_bayesian_models){
+  mod.mw.music_medi <- brm(probe1 ~ stimulation + block*stimulation + 
+                             music_year1 + meditation1 + scale(proberound) + (1|subj), 
+                    init=0, family=cumulative("probit"), data=pfc, 
+                    backend = "cmdstanr", chains = 6, iter=6000)
+  bayes_plot(mod.music_medi)+ labs(title="Music and meditation model")
+  summary(mod.music_medi)
+  
+  mod.bv.music_medi <- brm(zlogbv ~ stimulation + block*stimulation + 
+                             music_year1 + meditation1 + scale(proberound) + (1|subj), 
+                           init=0, data=pfc, 
+                           backend = "cmdstanr", chains = 6, iter=6000)
+  bayes_plot(mod.bv.music_medi)+ labs(title="Music and meditation model")
+  summary(mod.bv.music_medi)
+    
+  mod.ae.music_medi <- brm(zlogapen ~ stimulation + block*stimulation + 
+                             music_year1 + meditation1 + scale(proberound) + (1|subj), 
+                           init=0, data=pfc, 
+                           backend = "cmdstanr", chains = 6, iter=6000)
+  bayes_plot(mod.ae.music_medi)+ labs(title="Music and meditation model")
+  summary(mod.ae.music_medi)
+  
+  
+  if(script_save_bayesian_models){
+    save(mod.mw.music_medi, mod.bv.music_medi, mod.ae.music_medi,
+         file = paste0("data/export/", toggle_date_time,
+                       "bayesian_effect_of_music_meditaiton_on_mw-bv-ae.RData"))
+  }
+}
+if(!scritp_run_bayesian_models){
+    load("data/export/bayesian_effect_of_music_meditaiton_on_mw-bv-ae.RData")
+}
 
+#### Plot    ====
+plot_bayes_mw_music_medi <- ""
+  as_tibble(mod.music_medi) |> 
+  select(b_meditation1, b_music_year1) |>
+  mutate(name2 = "MW") |>
+  pivot_longer(c(b_meditation1, b_music_year1)) |>
+  mutate(
+    name = ifelse(name=="b_meditation1", "Meditation", "Music")
+  ) |>
+  ggplot(aes(name, value, col = name)) +
+  geom_hline(yintercept=0, linetype="dashed") +
+  stat_summary(fun.data = mean_hdci) 
+
+plot_bayes_bv_ae_music_medi <- 
+  as_tibble(mod.bv.music_medi) |> 
+  select(b_meditation1, b_music_year1) |>
+  rename_with(~paste0("BV_", .x)) |> 
+  bind_cols(
+    as_tibble(mod.ae.music_medi) |> 
+      select(b_meditation1, b_music_year1) |>
+      rename_with(~paste0("AE_", .x))
+  ) |>
+  pivot_longer(everything()) |>
+  separate_wider_delim(name, "_b_", names = c("dep", "params")) |>
+  ggplot(aes(params, value, col = params)) + 
+  facet_wrap(~dep) +
+  geom_hline(yintercept=0, linetype="dashed") +
+  stat_summary(fun.data = mean_hdci) 
+
+plot_bayes_bv_ae_music_medi
+plot_bayes_mw_music_medi
+  
+
+
+#### Table      ======
+tbl_bay_effect_of_music_med <-
+  as_tibble(mod.music_medi) |> 
+  select(b_meditation1, b_music_year1) |>
+  mutate(dep = "MW") |> 
+  bind_rows(
+    as_tibble(mod.bv.music_medi) |> 
+      select(b_meditation1, b_music_year1) |>
+      mutate(dep = "BV")
+  ) |>
+  bind_rows( 
+    as_tibble(mod.ae.music_medi) |> 
+      select(b_meditation1, b_music_year1) |>
+      mutate(dep = "AE")
+  ) |>
+  pivot_longer(c(b_meditation1, b_music_year1)) |>
+  mutate(name = ifelse(name=="b_meditation1", "Meditaiton", "Music")) |>
+  summarise(
+    .by = c(dep, name), 
+    m   = fmt_APA_numbers( mean(value) ),
+    hdi = bay_hdi(value, .chr=T),
+    er  = bay_er(value, .chr=T),
+    p   = bay_p(value, .p=T)
+  ) |> pivot_wider(names_from=dep, values_from=c(everything(), -dep, -name)) |>
+  mutate(e="", e2="") |>
+  gt() |>
+  tab_spanner("Mind wandering", ends_with("_MW")) |>
+  tab_spanner("Behavioural variability", ends_with("_BV")) |>
+  tab_spanner("Approximate entropy", ends_with("_AE")) |>
+  cols_align("center", c(everything(), -name)) |>
+  cols_move(e, "p_MW") |>
+  cols_move(e2, "p_BV") |>
+  cols_label(
+    starts_with("m_") ~ md("*M*"),
+    starts_with("hdi_") ~ "HDI",
+    starts_with("er_") ~ md("ER~*M*~"),
+    starts_with("p_") ~ md("*p*~*M*~"),
+    name="", e="",e2=""
+  )
+
+tbl_bay_effect_of_music_med
+if(script_save_figures){
+  save(tbl_bay_effect_of_music_med, 
+       paste0("tables/", toggle_date_time, "evidence for effects of meditation and music.docx"))
+}
 
 # Post-test      =====
 
@@ -370,7 +505,11 @@ accumen_bays_tbl <-
 
 accumen_bays_tbl
 if(script_save_tables){
-  gtsave(accumen_bays_tbl, "tables/Bayesian test of accumulating effects.docx")
+  gtsave(
+    accumen_bays_tbl, 
+    paste0("tables/", toggle_date_time,
+           "Bayesian test of accumulating effects.docx")
+    )
 }
 
 
