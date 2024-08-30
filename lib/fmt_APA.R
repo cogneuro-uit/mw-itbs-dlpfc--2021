@@ -108,4 +108,6 @@ fmt_APA_numbers <- function(num, .p = FALSE, .psym = FALSE, .low_val = FALSE, .c
     
     return( num )
   }) |> unlist()
+  
+  
 }

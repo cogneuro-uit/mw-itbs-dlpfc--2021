@@ -10,12 +10,9 @@ bay_er <- function(data, ...){
   do.call(fmt_APA_numbers, c(
     ifelse(
       m>0, 
-      sum(data>0) / sum(data<=0), # if greater
-      sum(data<0) / sum(data>=0)  # if less than
+      sum(data>0) / sum(data<=0),
+      sum(data<0) / sum(data>=0)
     ), arg))
-  
-  #   fmt_APA_numbers(num=_, .chr=T)
-  # f_hdi <- do.call(fmt_APA_numbers, c(list(hdi(data)), arg))
 }  
 
 bay_p <- function(data, ...){
@@ -26,6 +23,5 @@ bay_p <- function(data, ...){
       m>0,
       sum(data>0) / length(data), 
       sum(data<0) / length(data)
-    ), arg)
-  )
+    ), arg))
 }

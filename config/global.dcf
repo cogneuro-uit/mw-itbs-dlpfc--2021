@@ -1,4 +1,4 @@
-version: 0.10.3
+version: 0.11.0
 data_loading: TRUE
 data_loading_header: TRUE
 data_ignore:
@@ -8,7 +8,8 @@ munging: TRUE
 logging: FALSE
 logging_level: INFO
 load_libraries: TRUE
-libraries: tidyverse, lubridate, readxl, BayesFactor, haven, gt, brms, bayesplot, brms, cmdstanr, tidybayes
+libraries: tidyverse, lubridate, readxl, BayesFactor, haven, gt, brms, bayesplot, brms, cmdstanr,
+          tidybayes
 as_factors: FALSE
 tables_type: tibble
 attach_internal_libraries: FALSE
