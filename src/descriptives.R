@@ -482,7 +482,12 @@ fb_tabel_se <-
 feedback_diff_tbl <- 
   fb_tabel_se |>
   left_join(fb_tabel_rs, by = join_by(se_names==rs_names)) |>
-  mutate(e="", e2="",e3="", e4="",e5="") |>
+  mutate(
+    # Reverse BF scores to indicate the evidence FOR a null finding
+    se_bf = (1/se_bf) |> fmt_APA_numbers(num=_),
+    rs_bf = (1/rs_bf) |> fmt_APA_numbers(num=_),
+    e="", e2="",e3="", e4="",e5=""
+  ) |>
   gt() |>
   tab_spanner("Session 1", starts_with("se_s1")) |>
   tab_spanner("Session 2", starts_with("se_s2")) |>
@@ -501,7 +506,7 @@ feedback_diff_tbl <-
     ends_with("dif") ~ md("*M*~diff~"), ends_with("_t") ~ md("*t*"), 
     ends_with("df") ~ md("*df*"), ends_with("_p") ~ md("*p*"), 
     ends_with("p.adj") ~ md("*p*~adj~"), starts_with("e") ~ "",
-    ends_with("_bf") ~ md("BF~10~"),
+    ends_with("_bf") ~ md("BF~01~"),
   )
 
 feedback_diff_tbl
