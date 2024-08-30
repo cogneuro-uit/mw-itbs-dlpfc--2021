@@ -49,19 +49,19 @@ coef_hdi <- function(x){
 
 <!---    Describe big analysis that is placed in the supplemental material    --->
 
-We conducted an exploratory Bayesian analysis to determine the relationship between AE, BV and MW. We used an ordered-probit model, treating MW as the outcome variable and including the behavioural indices behavioural variability and approximate entropy along with block, stimulation condition and all relevant interactions (see Table S8 for all coefficients). Also in this model, we found that real stimulation increased MW, but for the last block (B1 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB1"])`; B2 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB2"])`; B3 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB3"])`), compared to sham stimulation (B1: `r coef_hdi(llm[,"b_blockB1"])`; B2: `r coef_hdi(llm[,"b_blockB2"])`; B3: `r coef_hdi(llm[,"b_blockB3"])`). Intriguingly, we found that real stimulation interacted with BV during the last two blocks (BV $\times$ B2 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal:blockB2"])`; BV $\times$ B3 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal:blockB3"])`), such that BV no longer predicted MW (see Figure **XX**). A similar pattern was observed for AE, in the sham condition, the negative relationship to MW in the baseline block (AE: `r coef_hdi(llm[,"b_zlogapen"])`) became weaker through repeated iTBS (AE $\times$ B1: `r coef_hdi(llm[,"b_zlogapen:blockB1"])`; AE $\times$ B2: `r coef_hdi(llm[,"b_zlogapen:blockB2"])`; AE $\times$ B3: `r coef_hdi(llm[,"b_zlogapen:blockB3"])` ). Similarly, the real stimulation condition indicated the same pattern albeit a weaker negative prediction of MW in the baseline block (AE $\times$ stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal"])`; AE $\times$ B1 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal:blockB1"])`; AE $\times$ B2 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal:blockB2"])`; AE $\times$ B3 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogbv:stimulationreal:blockB3"])`). 
+We conducted an exploratory Bayesian analysis to determine the relationship between AE, BV and MW. We used an ordered-probit model, treating the ordinal MW variable as the outcome variable and including the behavioural indices behavioural variability and approximate entropy along with block, stimulation condition and all relevant interactions but for the AE $\times$ BV interaction (see Table S8 for all coefficients). Also in this model, we found that real stimulation seemed to increased MW (B1 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB1"])`; B2 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB2"])`; B3 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB3"])`), compared to sham stimulation (B1: `r coef_hdi(llm[,"b_blockB1"])`; B2: `r coef_hdi(llm[,"b_blockB2"])`; B3: `r coef_hdi(llm[,"b_blockB3"])`). Intriguingly, we found that real stimulation interacted with BV during the last two blocks (BV $\times$ B2 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB2:zlogbv"])`; BV $\times$ B3 $\times$ stimulation: `r coef_hdi(llm[,"b_stimulationreal:blockB3:zlogbv"])`), such that BV no longer predicted MW. As for AE, even though it negatively predicted MW (AE: `r coef_hdi(llm[,"b_zlogapen"])`), over time, this negative prediction dissipated for both the sham stimulation (AE $\times$ B1: `r coef_hdi(llm[,"b_zlogapen:blockB1"])`; AE $\times$ B2: `r coef_hdi(llm[,"b_zlogapen:blockB2"])`; AE $\times$ B3: `r coef_hdi(llm[,"b_zlogapen:blockB3"])`) and the real  stimulation (AE $\times$ stimulation: `r coef_hdi(llm[,"b_zlogapen:stimulationreal"])`; AE $\times$ B1 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogapen:stimulationreal:blockB1"])`; AE $\times$ B2 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogapen:stimulationreal:blockB2"])`; AE $\times$ B3 $\times$ stimulation: `r coef_hdi(llm[,"b_zlogapen:stimulationreal:blockB3"])`). 
 
 
 
 ```{r quick vis, include=FALSE}
 #colnames(llm)
 as_tibble(llm) |>
-  pivot_longer(c("b_zlogbv:blockB1","b_zlogbv:blockB2","b_zlogbv:blockB3")) |>
+  pivot_longer(c("b_blockB1:zlogbv","b_blockB2:zlogbv","b_blockB3:zlogbv")) |>
   ggplot(aes(name, value)) +
   stat_summary(fun.data = mean_se)
 
 as_tibble(llm) |>
-  pivot_longer(c("b_zlogbv:stimulationreal:blockB1","b_zlogbv:stimulationreal:blockB2","b_zlogbv:stimulationreal:blockB3")) |>
+  pivot_longer(c("b_stimulationreal:blockB1:zlogbv","b_stimulationreal:blockB2:zlogbv","b_stimulationreal:blockB3:zlogbv")) |>
   ggplot(aes(name, value)) +
   stat_summary(fun.data = mean_se)
 ```
@@ -75,13 +75,13 @@ as_tibble(llm) |>
 as_tibble(llm) |>
   mutate(
     B0_BV_sham = b_zlogbv,
-    B0_BV_real = `b_zlogbv:stimulationreal`,
-    B1_BV_sham = b_zlogbv+`b_zlogbv:blockB1`,
-    B1_BV_real =`b_zlogbv:stimulationreal`+`b_zlogbv:blockB1` + `b_zlogbv:stimulationreal:blockB1`,
-    B2_BV_sham = b_zlogbv+`b_zlogbv:blockB2`,
-    B2_BV_real = `b_zlogbv:stimulationreal`+`b_zlogbv:blockB2` + `b_zlogbv:stimulationreal:blockB2`,
-    B3_BV_sham = b_zlogbv+`b_zlogbv:blockB3`,
-    B3_BV_real = `b_zlogbv:stimulationreal`+`b_zlogbv:blockB3` + `b_zlogbv:stimulationreal:blockB3`,
+    B0_BV_real = `b_stimulationreal:zlogbv`,
+    B1_BV_sham = b_zlogbv+`b_blockB1:zlogbv`,
+    B1_BV_real =`b_stimulationreal:zlogbv`+ `b_blockB1:zlogbv` + `b_stimulationreal:blockB1:zlogbv`,
+    B2_BV_sham = b_zlogbv+`b_blockB2:zlogbv`,
+    B2_BV_real = `b_stimulationreal:zlogbv`+`b_blockB2:zlogbv` + `b_stimulationreal:blockB2:zlogbv`,
+    B3_BV_sham = b_zlogbv+`b_blockB3:zlogbv`,
+    B3_BV_real = `b_stimulationreal:zlogbv`+`b_blockB3:zlogbv` + `b_stimulationreal:blockB3:zlogbv`,
     B0_AE_sham = b_zlogapen,
     B0_AE_real = `b_zlogapen:stimulationreal`,
     B1_AE_sham = b_zlogapen+`b_zlogapen:blockB1`,
@@ -102,6 +102,7 @@ as_tibble(llm) |>
   stat_summary(fun.data = mean_hdci, geom="pointrange", position=position_dodge(width=0.2)) +
     # mean_hdci might not be the same as hdi (but it seems to be the same...)
   labs(y = "MW", x = "Block") + 
+  scale_y_continuous(breaks=seq(-1,1,.1)) +
   theme_bw()
 
 #' AE's prediction changes over time (from being a significant negative predictor of MW to a non-significant?) 
@@ -118,12 +119,12 @@ as_tibble(llm) |>
   mutate(
     B0_BV_sham = 0,
     B0_BV_real = 0,
-    B1_BV_sham = `b_zlogbv:blockB1`,
-    B1_BV_real = `b_zlogbv:blockB1` + `b_zlogbv:stimulationreal:blockB1`,
-    B2_BV_sham = `b_zlogbv:blockB2`,
-    B2_BV_real = `b_zlogbv:blockB2` + `b_zlogbv:stimulationreal:blockB2`,
-    B3_BV_sham = `b_zlogbv:blockB3`,
-    B3_BV_real = `b_zlogbv:blockB3` + `b_zlogbv:stimulationreal:blockB3`,
+    B1_BV_sham = `b_blockB1:zlogbv`,
+    B1_BV_real = `b_blockB1:zlogbv` + `b_stimulationreal:blockB1:zlogbv`,
+    B2_BV_sham = `b_blockB2:zlogbv`,
+    B2_BV_real = `b_blockB2:zlogbv` + `b_stimulationreal:blockB2:zlogbv`,
+    B3_BV_sham = `b_blockB3:zlogbv`,
+    B3_BV_real = `b_blockB3:zlogbv` + `b_stimulationreal:blockB3:zlogbv`,
     B0_AE_sham = 0,
     B0_AE_real = 0,
     B1_AE_sham = `b_zlogapen:blockB1`,
@@ -143,7 +144,8 @@ as_tibble(llm) |>
   stat_summary(fun = mean, geom="line", aes(group=stimulation), position=position_dodge(width=0.2)) +
   stat_summary(fun.data = mean_hdci, geom="pointrange", position=position_dodge(width=0.2)) +
     # mean_hdci might not be the same as hdi (but it seems to be the same...)
-  labs(y = "MW", x = "Block")+ 
+  labs(y = "MW", x = "Block") + 
+  scale_y_continuous(breaks=seq(-1,1,.1)) +
   theme_bw()
 
 ```
@@ -157,9 +159,9 @@ as_tibble(llm) |>
 as_tibble(llm) |>
   mutate(
     B0_BV_diff = 0,
-    B1_BV_diff = `b_zlogbv:stimulationreal:blockB1` - `b_zlogbv:blockB1`,
-    B2_BV_diff = `b_zlogbv:stimulationreal:blockB2` - `b_zlogbv:blockB2`,
-    B3_BV_diff = `b_zlogbv:stimulationreal:blockB3` - `b_zlogbv:blockB3`,
+    B1_BV_diff = `b_stimulationreal:blockB1:zlogbv` - `b_blockB1:zlogbv`,
+    B2_BV_diff = `b_stimulationreal:blockB2:zlogbv` - `b_blockB2:zlogbv`,
+    B3_BV_diff = `b_stimulationreal:blockB3:zlogbv` - `b_blockB3:zlogbv`,
     B0_AE_diff = 0,
     B1_AE_diff = `b_zlogapen:stimulationreal:blockB1` - `b_zlogapen:blockB1`,
     B2_AE_diff = `b_zlogapen:stimulationreal:blockB2` - `b_zlogapen:blockB2`,
