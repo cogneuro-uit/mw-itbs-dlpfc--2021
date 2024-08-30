@@ -143,7 +143,68 @@ if(script_save_tables){
 
 
 ##  Music & Meditation        =====
-### Frequentist - prepare the data          =====
+### Descriptives           =====
+tbl_descriptives_mus_med <-
+  pfc |> 
+  pivot_longer(c(meditation1, music_year1), names_to = "cat", values_to="cat_val") |>
+  summarise(
+    .by = c(subj, cat),
+    cat_v = unique(cat_val),
+    mw = mean(probe1_n),
+    ae = mean(zlogapen),
+    bv = mean(zlogbv)
+  ) |>
+  pivot_longer(c(mw,ae,bv)) |>
+  summarise(
+    .by = c(cat, cat_v, name),
+    n = n(),
+    m = mean(value, na.rm=T),
+    sd = mean(value, na.rm=T)
+  ) |>
+  pivot_wider(names_from = cat_v, values_from=c(n,m,sd)) |>
+  mutate(mdiff = m_1 - m_0) |>
+  pivot_wider(names_from = cat, values_from=matches("(_0|_1|diff)$")) |>
+  mutate(
+    across(c(everything(), -starts_with("n_") ), ~fmt_APA_numbers(.x, .chr=T)),
+    name =ifelse(name=="mw", "MW", ifelse(name=="bv", "BV", "AE")),
+    e="", e_meditation1="",e_music_year1="",
+  ) |>
+  gt() |> 
+  tab_spanner("Any", contains("_1_")) |>
+  tab_spanner("No", contains("_0_")) |>
+  tab_spanner("Music", ends_with("music_year1")) |>  
+  tab_spanner("Meditation", ends_with("meditation1")) |>
+  cols_move(ends_with("meditation1"), name) |>
+  cols_move(contains("_0_meditation"), name) |>
+  cols_move(contains("_0_music_year1"), mdiff_meditation1) |>
+  cols_move(e, mdiff_meditation1) |>
+  cols_move(e_meditation1, sd_0_meditation1) |>
+  cols_move(e_music_year1, sd_0_music_year1) |>
+  cols_align("center", c(everything(),-name)) |>
+  cols_label(
+    starts_with("n_") ~ "n",
+    starts_with("m_") ~ md("*M*"),
+    starts_with("sd_") ~ md("*SD*"),
+    starts_with("mdiff") ~ md("*M*~diff~"),
+    starts_with("e") ~ "",
+  ) |>
+  tab_footnote(
+    md(
+      "*Note*. Fourteen people reported to have no meditation while 26 reported 
+      that they had meditation experience. With respect to musical experience, 
+      16 reported that they had no experience, while 24 reported that they had 
+      musical experience."
+    )
+  ) |>
+  cols_hide(starts_with("n_"))
+
+tbl_descriptives_mus_med
+if(script_save_tables){
+  gtsave(tbl_descriptives_mus_med, 
+         paste0("tables/", toggle_date_time, "music_meditation_desciptives.docx"))
+}
+
+### Freq stats - prepare the data          =====
 m_m_data <- 
   pfc |> 
   pivot_longer(c(meditation1, music_year1), names_to = "cat", values_to="cat_val") |>
@@ -223,7 +284,7 @@ if(script_save_figures){
   ggsave(m_m_figure, paste0("figs/exploratory/",toggle_date_time,"meditation_and_music.svg"))
 }
 
-### Bayesian        ====
+### Bayes stats        ====
 #### Models         ====
 if(script_run_bayesian_models){
   mod.mw.music_medi <- brm(probe1 ~ stimulation + block*stimulation + 
@@ -259,18 +320,6 @@ if(!scritp_run_bayesian_models){
 }
 
 #### Plot    ====
-plot_bayes_mw_music_medi <- ""
-  as_tibble(mod.music_medi) |> 
-  select(b_meditation1, b_music_year1) |>
-  mutate(name2 = "MW") |>
-  pivot_longer(c(b_meditation1, b_music_year1)) |>
-  mutate(
-    name = ifelse(name=="b_meditation1", "Meditation", "Music")
-  ) |>
-  ggplot(aes(name, value, col = name)) +
-  geom_hline(yintercept=0, linetype="dashed") +
-  stat_summary(fun.data = mean_hdci) 
-
 plot_bayes_bv_ae_music_medi <- 
   as_tibble(mod.bv.music_medi) |> 
   select(b_meditation1, b_music_year1) |>
@@ -282,14 +331,49 @@ plot_bayes_bv_ae_music_medi <-
   ) |>
   pivot_longer(everything()) |>
   separate_wider_delim(name, "_b_", names = c("dep", "params")) |>
+  mutate(
+    params = ifelse(params=="meditation1", "Meditation", "Music")
+  ) |>
   ggplot(aes(params, value, col = params)) + 
   facet_wrap(~dep) +
   geom_hline(yintercept=0, linetype="dashed") +
-  stat_summary(fun.data = mean_hdci) 
+  stat_summary(fun.data = mean_hdci) +
+  labs(x="") +
+  scale_y_continuous(breaks = seq(-.6,.6, .15), limits = c(-.6,.6)) +
+  theme(legend.position="none") 
 
 plot_bayes_bv_ae_music_medi
+if(script_save_figures){
+  ggsave(
+    paste0(
+      "figs/", toggle_date_time, "Meditation and music on BV and AE.svg"
+    ), plot_bayes_bv_ae_music_medi, width = 6, height = 3)
+}
+
+
+plot_bayes_mw_music_medi <- 
+  as_tibble(mod.music_medi) |> 
+  select(b_meditation1, b_music_year1) |>
+  mutate(name2 = "MW") |>
+  pivot_longer(c(b_meditation1, b_music_year1)) |>
+  mutate(
+    name = ifelse(name=="b_meditation1", "Meditation", "Music")
+  ) |>
+  ggplot(aes(name, value, col = name)) +
+  facet_wrap(~name2) +
+  geom_hline(yintercept=0, linetype="dashed") +
+  stat_summary(fun.data = mean_hdci) +
+  scale_y_continuous(breaks = seq(-.6,.6, .15), limits = c(-.6,.6)) +
+  labs(x = "", y = "Effect") +
+  theme(legend.position = "none")
+
 plot_bayes_mw_music_medi
-  
+if(script_save_figures){
+  ggsave(
+    paste0(
+      "figs/", toggle_date_time, "Meditation and music on MW.svg"
+    ), plot_bayes_mw_music_medi, width = 3, height = 3)
+}
 
 
 #### Table      ======
@@ -327,15 +411,15 @@ tbl_bay_effect_of_music_med <-
   cols_label(
     starts_with("m_") ~ md("*M*"),
     starts_with("hdi_") ~ "HDI",
-    starts_with("er_") ~ md("ER~*M*~"),
-    starts_with("p_") ~ md("*p*~*M*~"),
+    starts_with("er_") ~ md("ER~dir~"),
+    starts_with("p_") ~ md("*p*~dir~"),
     name="", e="",e2=""
   )
 
 tbl_bay_effect_of_music_med
 if(script_save_figures){
-  save(tbl_bay_effect_of_music_med, 
-       paste0("tables/", toggle_date_time, "evidence for effects of meditation and music.docx"))
+  gtsave(tbl_bay_effect_of_music_med, 
+         paste0("tables/", toggle_date_time, "evidence for effects of meditation and music.docx"))
 }
 
 # Post-test      =====
