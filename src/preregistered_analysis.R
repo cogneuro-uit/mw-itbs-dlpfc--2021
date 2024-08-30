@@ -373,8 +373,8 @@ if(!script_load_bayesian_data){
   
   ## Full Bayesian model            =====
   brm(
-    probe1 ~ zlogapen*zlogbv*stimulation*block + scale(proberound) + (1|subj), data = pfc,
-    family=cumulative("probit"), chains = 6, iter=4000, cores=6, init=0, backend="cmdstanr"
+    probe1 ~ zlogapen*stimulation*block +  zlogbv*stimulation*block + scale(proberound) + (1|subj), data = pfc,
+    family=cumulative("probit"), chains = 6, iter=6000, cores=6, init=0, backend="cmdstanr" 
   ) -> larg_mod_test
   bayes_plot(larg_mod_test)
   
@@ -387,7 +387,7 @@ if(!script_load_bayesian_data){
     
   } 
   
-  if(!script_save_bayesian_data)
+  if(!script_save_bayesian_data){
     warning("BAYESIAN SIMULATION HAS BEEN RUN, BUT NOT SAVED.")
   }
 }
@@ -510,17 +510,18 @@ if(script_save_figures){
 
 ### Full Bayesian                 =====
 
-l_mod_table <- 
+l_mod_table <- ""
   as_tibble(larg_mod_test) |> 
   select(starts_with("b_"), sd_subj__Intercept) |>
   gather(variable,val) |>
   group_by(variable) |>
-  summarize(mean=mean(val), 
-            q5 = hdi(val)[1],
-            q95 = hdi(val)[2],
-            erat = sum(val>0)/sum(val<=0),
-            erat = ifelse(erat<1, 1/erat, erat),
-            pd = ifelse(mean(val < 0) < 0.5, mean(val > 0), mean(val < 0))) |>
+  summarize(
+    pd   = sum(val>0)/length(val),
+    mean = paste0( fmt_APA_numbers( mean(val) ), ifelse(pd>.95, "*","") ), 
+    hdi  = bay_hdi(val, .chr=T), 
+    erat = bay_er(val, .chr=T),
+    pd   = fmt_APA_numbers(pd, .p=T) 
+  ) |>
   mutate(variable=fct_recode(
     variable,
     Threshold1="b_Intercept[1]", Threshold2="b_Intercept[2]", Threshold3="b_Intercept[3]", 
@@ -592,14 +593,15 @@ l_mod_table <-
       "BV x AE x B1 x stimulation", 
       "BV x AE x B2 x stimulation", 
       "BV x AE x B3 x stimulation", 
-      "Sigma (subjects)"))) |> 
+      "Sigma (subjects)"))
+  ) |> 
   arrange(variable) |>
-  mutate(group=case_when(variable %in% c("Sigma (subjects)") ~ "Model fit",
-                         T ~ "Coefficients")) |>
-  mutate(b = sprintf("%.2f%s", mean, ifelse(pd>=0.95 & group=="Coefficients", "*", "")),
-         HDI = sprintf("[%.2f, %.2f]", q5, q95),
-         pd = sprintf("%.2f", pd)) |>
-  select(-mean,-q5, -q95)
+  mutate(
+    group = case_when(
+      variable %in% c("Sigma (subjects)") ~ "Model fit",
+      T ~ "Coefficients")
+  ) |>
+  select(-mean)
 
 r2 <- brms::bayes_R2(larg_mod_test)
 lo <- brms::loo(larg_mod_test)$estimates["looic",]
@@ -607,20 +609,21 @@ lo <- brms::loo(larg_mod_test)$estimates["looic",]
 l_mod_table_last <- 
   l_mod_table |> 
   add_row(variable="R2", pd="", #²
-          b = sprintf("%.2f", r2[1]),
-          HDI = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
+          b = fmt_APA_numbers(r2[1], .chr = T, .p = T),
+          hdi = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
           group="Model fit") |>
   add_row(variable="LOOIC", pd="", 
-          b = sprintf("%.2f", lo[1]),
-          HDI = sprintf("(SE=%.2f)", lo[2]),
+          b = fmt_APA_numbers(lo[1], .chr = T, .p = T),
+          hdi = sprintf("(SE=%.2f)", lo[2]),
           group = "Model fit") |>
   mutate(erat = fmt_APA_numbers(erat, .chr=T)) |>
   gt(groupname_col = "group") |>
-  cols_move(c(erat, pd), HDI) |>
+  cols_move(c(erat, pd), hdi) |>
   cols_label(
     b = md("*b*"), 
-    erat = md("ER~b~"),
-    pd = md("*p*~b~")
+    erat = md("ER~dir~"),
+    pd = md("*p*~dir~"),
+    hdi = "HDI",
   ) |>
   cols_align("center", 2:6) 
 

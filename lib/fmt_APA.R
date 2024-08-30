@@ -1,7 +1,7 @@
 # Format numbers to APA standard
 fmt_APA_numbers <- function(num, .p = FALSE, .psym = FALSE, .low_val = FALSE, .chr = FALSE){
   require(purrr)
-
+  
   purrr::map(num, \(num){
     o_num <- num
     # Store original value
@@ -25,25 +25,35 @@ fmt_APA_numbers <- function(num, .p = FALSE, .psym = FALSE, .low_val = FALSE, .c
     
     # < than symbol
     if(.p){
+      if( num == 1 ){
+        return( "1.00" )
+      }
+      
+      num <- round(num, 3)
+      if( num == 1 ){
+        return( "> .999")
+      }
+      
       if(num < .001){ 
-        return( "< .001" )
+        num <- "< .001"
       } else {
-        num <- round(num, 3) |> as.character() |> str_replace("0.", ".")
+        num <- num |> as.character() |> str_replace("0.", ".")
         if(str_length(num) <= 3){
           for(x in 1:(4 - str_length( num)) ){
             num <- paste0(num, "0")
           }
         }
-        return( num ) 
       }
+      return( num ) 
     }
     
     # > 100
     if(num >= 100 | num <= -100){
+      num <- round(num, 0)
       if(.chr){
-        return( as.character(num) ) 
+        return( as.character( num) ) 
       }
-      return( round(num, 0) )
+      return( num )
     }
     
     # > 10
