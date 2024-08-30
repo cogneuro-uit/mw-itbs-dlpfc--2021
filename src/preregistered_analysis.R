@@ -7,7 +7,7 @@ load.project()
 #' and nevertheless run the whole script without necessarily all the other aspects
 
 # Toggles           =====
-script_save_with_date_time <- TRUE
+script_save_with_date_time <- FALSE
   #' **TRUE** will save all generated output with a date and time. 
   #' This way you will not append previously generated data 
   #' **FALSE** will not save the generated output with a date and time.
@@ -381,10 +381,9 @@ if(!script_load_bayesian_data){
   if(script_save_bayesian_data){
     save(
       mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, 
-      file=paste0("data/export/", toggle_date_time, "paper_vars.RData")
+      file = paste0("data/export/", toggle_date_time, "paper_vars.RData")
     )
     save(larg_mod_test, file = paste0("data/export/", toggle_date_time, "paper_large_model.Rdata"))
-    
   } 
   
   if(!script_save_bayesian_data){
@@ -510,17 +509,17 @@ if(script_save_figures){
 
 ### Full Bayesian                 =====
 
-l_mod_table <- ""
+l_mod_table <- 
   as_tibble(larg_mod_test) |> 
   select(starts_with("b_"), sd_subj__Intercept) |>
   gather(variable,val) |>
   group_by(variable) |>
   summarize(
-    pd   = sum(val>0)/length(val),
-    mean = paste0( fmt_APA_numbers( mean(val) ), ifelse(pd>.95, "*","") ), 
+    pd   = bay_p(val, .low_val=T),
+    b    = paste0( fmt_APA_numbers( mean(val), .chr=T ), ifelse(pd>.95, "*","") ), 
     hdi  = bay_hdi(val, .chr=T), 
     erat = bay_er(val, .chr=T),
-    pd   = fmt_APA_numbers(pd, .p=T) 
+    pd  = fmt_APA_numbers(pd, .p=T) 
   ) |>
   mutate(variable=fct_recode(
     variable,
@@ -535,64 +534,38 @@ l_mod_table <- ""
     `B3 x stimulation`="b_stimulationreal:blockB3", 
     Trial="b_scaleproberound",  
     # Behaviour
+    # --- --- BV  --- --- 
     BV = "b_zlogbv", 
-    `BV x stimulation` = "b_zlogbv:stimulationreal", 
+    `BV x stimulation` = "b_stimulationreal:zlogbv", 
+    `BV x B1` = "b_blockB1:zlogbv", 
+    `BV x B2` = "b_blockB2:zlogbv", 
+    `BV x B3` = "b_blockB3:zlogbv",
+    `BV x B1 x stimulation` = "b_stimulationreal:blockB1:zlogbv", 
+    `BV x B2 x stimulation` = "b_stimulationreal:blockB2:zlogbv", 
+    `BV x B3 x stimulation` = "b_stimulationreal:blockB3:zlogbv",
+    # --- --- AE --- --- 
     AE = "b_zlogapen", 
     `AE x stimulation` = "b_zlogapen:stimulationreal",
-    `BV x AE` = "b_zlogapen:zlogbv",
-    `BV x AE x stimulation` = "b_zlogapen:zlogbv:stimulationreal",
-    # behaviour and block 
-    `BV x B1` = "b_zlogbv:blockB1", 
-    `BV x B2` = "b_zlogbv:blockB2", 
-    `BV x B3` = "b_zlogbv:blockB3",
-    `BV x B1 x stimulation` = "b_zlogbv:stimulationreal:blockB1", 
-    `BV x B2 x stimulation` = "b_zlogbv:stimulationreal:blockB2", 
-    `BV x B3 x stimulation` = "b_zlogbv:stimulationreal:blockB3",
     `AE x B1` = "b_zlogapen:blockB1", 
     `AE x B2` = "b_zlogapen:blockB2", 
     `AE x B3` = "b_zlogapen:blockB3",
     `AE x B1 x stimulation` = "b_zlogapen:stimulationreal:blockB1", 
     `AE x B2 x stimulation` = "b_zlogapen:stimulationreal:blockB2", 
     `AE x B3 x stimulation` = "b_zlogapen:stimulationreal:blockB3",
-    `AE x B1` = "b_zlogapen:blockB1", 
-    `AE x B2` = "b_zlogapen:blockB2", 
-    `AE x B3` = "b_zlogapen:blockB3",
-    `BV x AE x B1` = "b_zlogapen:zlogbv:blockB1",
-    `BV x AE x B2` = "b_zlogapen:zlogbv:blockB2",
-    `BV x AE x B3` = "b_zlogapen:zlogbv:blockB3",
-    `BV x AE x B1 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB1",
-    `BV x AE x B2 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB2",
-    `BV x AE x B3 x stimulation` = "b_zlogapen:zlogbv:stimulationreal:blockB3",
     `Sigma (subjects)`="sd_subj__Intercept"),
     variable=ordered(variable, levels=c(
       "Threshold1", "Threshold2", "Threshold3",
       "Trial", "Stimulation (B0)", 
       "B1","B2","B3", 
       "B1 x stimulation", "B2 x stimulation", "B3 x stimulation", 
-      "BV", 
-      "BV x stimulation", 
-      "AE", 
-      "AE x stimulation", 
-      "BV x AE", 
-      "BV x AE x stimulation", 
-      "BV x B1", 
-      "BV x B2", 
-      "BV x B3", 
-      "BV x B1 x stimulation", 
-      "BV x B2 x stimulation", 
-      "BV x B3 x stimulation", 
-      "AE x B1", 
-      "AE x B2", 
-      "AE x B3", 
-      "AE x B1 x stimulation", 
-      "AE x B2 x stimulation", 
-      "AE x B3 x stimulation", 
-      "BV x AE x B1", 
-      "BV x AE x B2", 
-      "BV x AE x B3", 
-      "BV x AE x B1 x stimulation", 
-      "BV x AE x B2 x stimulation", 
-      "BV x AE x B3 x stimulation", 
+      # --- --- BV --- --- 
+      "BV",  "BV x stimulation", 
+      "BV x B1", "BV x B2", "BV x B3", 
+      "BV x B1 x stimulation", "BV x B2 x stimulation", "BV x B3 x stimulation", 
+      # --- --- AE --- --- 
+      "AE", "AE x stimulation", 
+      "AE x B1", "AE x B2", "AE x B3", 
+      "AE x B1 x stimulation", "AE x B2 x stimulation", "AE x B3 x stimulation", 
       "Sigma (subjects)"))
   ) |> 
   arrange(variable) |>
@@ -600,23 +573,26 @@ l_mod_table <- ""
     group = case_when(
       variable %in% c("Sigma (subjects)") ~ "Model fit",
       T ~ "Coefficients")
-  ) |>
-  select(-mean)
+  ) 
 
 r2 <- brms::bayes_R2(larg_mod_test)
 lo <- brms::loo(larg_mod_test)$estimates["looic",]
 
 l_mod_table_last <- 
   l_mod_table |> 
-  add_row(variable="R2", pd="", #²
-          b = fmt_APA_numbers(r2[1], .chr = T, .p = T),
-          hdi = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
-          group="Model fit") |>
-  add_row(variable="LOOIC", pd="", 
-          b = fmt_APA_numbers(lo[1], .chr = T, .p = T),
-          hdi = sprintf("(SE=%.2f)", lo[2]),
-          group = "Model fit") |>
-  mutate(erat = fmt_APA_numbers(erat, .chr=T)) |>
+  add_row(
+    variable="R2", pd="", #²
+    b = fmt_APA_numbers(r2[1], .chr = T, .p = T),
+    hdi = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
+    group="Model fit"
+  ) |>
+  add_row(
+    variable="LOOIC", pd="", 
+    b = fmt_APA_numbers(lo[1], .chr=T),
+    hdi = paste0("(SE=", fmt_APA_numbers(lo[2], .chr=T)),
+    group = "Model fit"
+  ) |>
+  mutate(erat = fmt_APA_numbers(erat, .chr=T) ) |>
   gt(groupname_col = "group") |>
   cols_move(c(erat, pd), hdi) |>
   cols_label(
