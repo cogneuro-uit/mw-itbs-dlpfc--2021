@@ -10,6 +10,10 @@ library(gt)
 source("../lib/fmt_APA.R")
 source("../lib/mcmc.R")
 load("../data/export/paper_vars.RData")
+load("../data/export/bayesian_effect_of_music_meditaiton_on_mw-bv-ae.RData")
+mw_mus_med <- as.matrix(mod.mw.music_medi)
+bv_mus_med <- as.matrix(mod.bv.music_medi)
+ae_mus_med <- as.matrix(mod.ae.music_medi)
 
 coef_hdi <- function(x){
   dir="+"
@@ -108,3 +112,42 @@ B2-B1: `r coef_hdi(acc_ae[,"diffB2_B1"])`
 
 B3-B2: `r coef_hdi(acc_ae[,"diffB3_B2"])`  
 \n
+
+
+
+
+# Reporting the effect of music and meditaiton
+
+```{r, include=FALSE}
+coef_hdi <- function(x){
+  dir="+"
+  m = fmt_APA_numbers( mean(x), .chr=T )
+  # ll <- hdi(x)[1]
+  # ul <- hdi(x)[2]
+  ll  = fmt_APA_numbers( quantile(x, 0.025)[[1]], .chr=T )
+  ul  = fmt_APA_numbers( quantile(x, 0.975)[[1]], .chr=T )
+  erat = sum(x>0)/sum(x<=0)
+  pval = sum(x>0)/length(x)
+
+  if(m<0){
+    erat=1./erat
+    pval=1-pval
+    dir="-"
+  }
+  if(is.infinite(erat)){
+    erat=ifelse(erat<0, "-\\infty", "\\infty")
+  } else {
+    erat=erat
+  }
+  pval = fmt_APA_numbers(pval, .p=T)
+  erat = fmt_APA_numbers(erat, .chr=T)
+
+  sprintf(
+    "$b=%s, [%s, %s], p^{%s}=%s, \\text{ER}^{%s}=%s$", 
+    m, ll, ul, dir, pval, dir, erat)
+}
+```
+
+
+Our results did not find convincing evidence that musical or meditation experience influenced either MW, BV or AE. The findings revealed that neither musical (`r coef_hdi(mw_mus_med[,"b_music_year1"])`) or meditation (`r coef_hdi(mw_mus_med[,"b_meditation1"])`) experience influenced MW. Similarly, for BV, the results did not find convincing evidence that musical experience (`r coef_hdi(bv_mus_med[,"b_music_year1"])`) or meditation experience (`r coef_hdi(bv_mus_med[,"b_meditation1"])`) influenced BV. Lastly, for AE, the results did not indicate convincing evidence that musical experience (`r coef_hdi(ae_mus_med[,"b_music_year1"])`) or meditation experience (`r coef_hdi(ae_mus_med[,"b_meditation1"])`) influenced AE.  
+
