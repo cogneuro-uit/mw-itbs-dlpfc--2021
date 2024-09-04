@@ -597,3 +597,104 @@ if(script_save_tables){
 }
 
 
+## Full Bayesian model            =====
+if(script_run_bayesian_models){
+  mod.mw_bv_ae <- 
+    brm(
+      probe1 ~ zlogapen*stimulation +  zlogbv*stimulation + stimulation*block + scale(proberound) + (1|subj), data = pfc,
+      family = cumulative("probit"), chains = 6, iter=6000, cores=6, init=0, backend="cmdstanr" 
+    )
+  bayes_plot(mod.mw_bv_ae)
+}
+
+if(script_save_bayesian_data){
+  save(mod.mw_bv_ae, file = paste0("data/export/", toggle_date_time, "mod_mw_bv+ae.RData"))
+}
+
+if(!script_run_bayesian_models){
+  load("data/export/mod_mw_bv+ae.RData")
+}
+
+### Visualize BV+AE on MW - Bayesian                 =====
+
+l_mod_table <- 
+  as_tibble(mod.mw_bv_ae) |> 
+  select(starts_with("b_"), sd_subj__Intercept) |>
+  gather(variable,val) |>
+  group_by(variable) |>
+  summarize(
+    pd   = bay_p(val, .low_val=T),
+    b    = paste0( fmt_APA_numbers( mean(val), .chr=T ), ifelse(pd>.95, "*","") ), 
+    hdi  = bay_hdi(val, .chr=T), 
+    erat = bay_er(val, .chr=T),
+    pd  = fmt_APA_numbers(pd, .p=T) 
+  ) |>
+  mutate(variable=fct_recode(
+    variable,
+    Threshold1="b_Intercept[1]", Threshold2="b_Intercept[2]", Threshold3="b_Intercept[3]", 
+    # Block
+    Trial="b_scaleproberound",  
+    `Stimulation (B0)`="b_stimulationreal",
+    B1="b_blockB1", 
+    B2="b_blockB2", 
+    B3="b_blockB3",
+    `B1 x stimulation`="b_stimulationreal:blockB1", 
+    `B2 x stimulation`="b_stimulationreal:blockB2",
+    `B3 x stimulation`="b_stimulationreal:blockB3", 
+    # --- --- BV  --- --- 
+    BV = "b_zlogbv", 
+    `BV x stimulation` = "b_stimulationreal:zlogbv", 
+    # --- --- AE --- --- 
+    AE = "b_zlogapen", 
+    `AE x stimulation` = "b_zlogapen:stimulationreal",
+    `Sigma (subjects)`="sd_subj__Intercept"),
+    variable=ordered(variable, levels=c(
+      "Threshold1", "Threshold2", "Threshold3",
+      "Trial", "Stimulation (B0)", 
+      "B1","B2","B3", 
+      "B1 x stimulation", "B2 x stimulation", "B3 x stimulation",
+      # --- --- BV --- --- 
+      "BV",  "BV x stimulation", 
+      # --- --- AE --- --- 
+      "AE", "AE x stimulation", 
+      "Sigma (subjects)"))
+  ) |> 
+  arrange(variable) |>
+  mutate(
+    group = case_when(
+      variable %in% c("Sigma (subjects)") ~ "Model fit",
+      T ~ "Coefficients")
+  ) 
+
+r2 <- brms::bayes_R2(mod.mw_bv_ae)
+lo <- brms::loo(mod.mw_bv_ae)$estimates["looic",]
+
+l_mod_table_last <- 
+  l_mod_table |> 
+  add_row(
+    variable="R2", pd="", #²
+    b = fmt_APA_numbers(r2[1], .chr = T, .p = T),
+    hdi = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
+    group="Model fit"
+  ) |>
+  add_row(
+    variable="LOOIC", pd="", 
+    b = fmt_APA_numbers(lo[1], .chr=T),
+    hdi = paste0("(SE=", fmt_APA_numbers(lo[2], .chr=T)),
+    group = "Model fit"
+  ) |>
+  mutate(erat = fmt_APA_numbers(erat, .chr=T) ) |>
+  gt(groupname_col = "group") |>
+  cols_move(c(erat, pd), hdi) |>
+  cols_label(
+    b = md("*b*"), 
+    erat = md("ER~dir~"),
+    pd = md("*p*~dir~"),
+    hdi = "HDI",
+  ) |>
+  cols_align("center", 2:6) 
+
+l_mod_table_last
+if(script_save_tables){
+  gtsave(l_mod_table_last, paste0("tables/",toggle_date_time, "mod_bv+ae_on_MW.docx"))
+}

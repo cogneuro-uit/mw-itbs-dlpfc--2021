@@ -327,6 +327,11 @@ if(!script_load_bayesian_data){
   bayes_plot(mod.pfc.mw)+ labs(title="Full -AE&BE")
   summary(mod.pfc.mw)
   
+  mod.pfc.mw <- brm(probe1 ~ stimulation + zlogapen + stimulation + scale(proberound) + (1|subj), 
+                    init=0, family=cumulative("probit"), data=pfc, 
+                    backend = "cmdstanr", chains = 6, iter=3000)
+  bayes_plot(mod.pfc.mw)+ labs(title="Full -AE&BE")
+  summary(mod.pfc.mw)
   
   ## AE           ======
   mod.pfc.ae <- brm(zlogapen ~ stimulation + block*stimulation + scale(proberound) + (1|subj), 
@@ -371,19 +376,11 @@ if(!script_load_bayesian_data){
   mod.pfc.mb  <- brms::add_criterion(mod.pfc.mb,  criterion = c("bayes_R2", "loo"))
   mod.pfc.smw <- brms::add_criterion(mod.pfc.smw, criterion = c("bayes_R2", "loo"))
   
-  ## Full Bayesian model            =====
-  brm(
-    probe1 ~ zlogapen*stimulation*block +  zlogbv*stimulation*block + scale(proberound) + (1|subj), data = pfc,
-    family=cumulative("probit"), chains = 6, iter=6000, cores=6, init=0, backend="cmdstanr" 
-  ) -> larg_mod_test
-  bayes_plot(larg_mod_test)
-  
   if(script_save_bayesian_data){
     save(
       mod.pfc.ae, mod.pfc.bv, mod.pfc.mw, mod.pfc.mb, mod.pfc.smw, 
       file = paste0("data/export/", toggle_date_time, "paper_vars.RData")
     )
-    save(larg_mod_test, file = paste0("data/export/", toggle_date_time, "paper_large_model.Rdata"))
   } 
   
   if(!script_save_bayesian_data){
@@ -393,7 +390,6 @@ if(!script_load_bayesian_data){
 
 if(script_load_bayesian_data){
   load("data/export/paper_vars.RData")
-  load("data/export/paper_large_model.Rdata")
 }
 
 
@@ -507,141 +503,8 @@ if(script_save_figures){
 }
 
 
-### Full Bayesian                 =====
-
-l_mod_table <- 
-  as_tibble(larg_mod_test) |> 
-  select(starts_with("b_"), sd_subj__Intercept) |>
-  gather(variable,val) |>
-  group_by(variable) |>
-  summarize(
-    pd   = bay_p(val, .low_val=T),
-    b    = paste0( fmt_APA_numbers( mean(val), .chr=T ), ifelse(pd>.95, "*","") ), 
-    hdi  = bay_hdi(val, .chr=T), 
-    erat = bay_er(val, .chr=T),
-    pd  = fmt_APA_numbers(pd, .p=T) 
-  ) |>
-  mutate(variable=fct_recode(
-    variable,
-    Threshold1="b_Intercept[1]", Threshold2="b_Intercept[2]", Threshold3="b_Intercept[3]", 
-    # Block
-    `Stimulation (B0)`="b_stimulationreal",
-    B1="b_blockB1", 
-    B2="b_blockB2", 
-    B3="b_blockB3",
-    `B1 x stimulation`="b_stimulationreal:blockB1", 
-    `B2 x stimulation`="b_stimulationreal:blockB2",
-    `B3 x stimulation`="b_stimulationreal:blockB3", 
-    Trial="b_scaleproberound",  
-    # Behaviour
-    # --- --- BV  --- --- 
-    BV = "b_zlogbv", 
-    `BV x stimulation` = "b_stimulationreal:zlogbv", 
-    `BV x B1` = "b_blockB1:zlogbv", 
-    `BV x B2` = "b_blockB2:zlogbv", 
-    `BV x B3` = "b_blockB3:zlogbv",
-    `BV x B1 x stimulation` = "b_stimulationreal:blockB1:zlogbv", 
-    `BV x B2 x stimulation` = "b_stimulationreal:blockB2:zlogbv", 
-    `BV x B3 x stimulation` = "b_stimulationreal:blockB3:zlogbv",
-    # --- --- AE --- --- 
-    AE = "b_zlogapen", 
-    `AE x stimulation` = "b_zlogapen:stimulationreal",
-    `AE x B1` = "b_zlogapen:blockB1", 
-    `AE x B2` = "b_zlogapen:blockB2", 
-    `AE x B3` = "b_zlogapen:blockB3",
-    `AE x B1 x stimulation` = "b_zlogapen:stimulationreal:blockB1", 
-    `AE x B2 x stimulation` = "b_zlogapen:stimulationreal:blockB2", 
-    `AE x B3 x stimulation` = "b_zlogapen:stimulationreal:blockB3",
-    `Sigma (subjects)`="sd_subj__Intercept"),
-    variable=ordered(variable, levels=c(
-      "Threshold1", "Threshold2", "Threshold3",
-      "Trial", "Stimulation (B0)", 
-      "B1","B2","B3", 
-      "B1 x stimulation", "B2 x stimulation", "B3 x stimulation", 
-      # --- --- BV --- --- 
-      "BV",  "BV x stimulation", 
-      "BV x B1", "BV x B2", "BV x B3", 
-      "BV x B1 x stimulation", "BV x B2 x stimulation", "BV x B3 x stimulation", 
-      # --- --- AE --- --- 
-      "AE", "AE x stimulation", 
-      "AE x B1", "AE x B2", "AE x B3", 
-      "AE x B1 x stimulation", "AE x B2 x stimulation", "AE x B3 x stimulation", 
-      "Sigma (subjects)"))
-  ) |> 
-  arrange(variable) |>
-  mutate(
-    group = case_when(
-      variable %in% c("Sigma (subjects)") ~ "Model fit",
-      T ~ "Coefficients")
-  ) 
-
-r2 <- brms::bayes_R2(larg_mod_test)
-lo <- brms::loo(larg_mod_test)$estimates["looic",]
-
-l_mod_table_last <- 
-  l_mod_table |> 
-  add_row(
-    variable="R2", pd="", #²
-    b = fmt_APA_numbers(r2[1], .chr = T, .p = T),
-    hdi = sprintf("[%.2f, %.2f]", r2[3], r2[4]),
-    group="Model fit"
-  ) |>
-  add_row(
-    variable="LOOIC", pd="", 
-    b = fmt_APA_numbers(lo[1], .chr=T),
-    hdi = paste0("(SE=", fmt_APA_numbers(lo[2], .chr=T)),
-    group = "Model fit"
-  ) |>
-  mutate(erat = fmt_APA_numbers(erat, .chr=T) ) |>
-  gt(groupname_col = "group") |>
-  cols_move(c(erat, pd), hdi) |>
-  cols_label(
-    b = md("*b*"), 
-    erat = md("ER~dir~"),
-    pd = md("*p*~dir~"),
-    hdi = "HDI",
-  ) |>
-  cols_align("center", 2:6) 
-
-l_mod_table_last
-if(script_save_tables){
-  gtsave(l_mod_table_last, paste0("tables/",toggle_date_time, "large_bayes_model.docx"))
-}
-
-
-
-# WITH  BV & AE
-# mod.pfc.test <- brm(probe1 ~ zlogbv * zlogapen + 
-#                       blockB1 + blockB1:stimulation + 
-#                       blockB2 + blockB2:stimulation + 
-#                       blockB3 + blockB3:stimulation + 
-#                       zproberound + (1|subj),  data=pfc_t,
-#                     init=0, family=cumulative("probit"), backend = "cmdstanr", chains = 6, iter=3000)
-# bayes_plot(mod.pfc.test)
-# 
-# add_criterion(mod.pfc.test, criterion = c("loo", "bayes_R2")) -> mod.pfc.test
-# loo_compare(mod.pfc.mw2, mod.pfc.test)
-
-
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-
-
-## Quantify differences using the Bayesian regression models     =====
-# # Numeric difference
-# pfc |>
-#   select(subj,block,proberound,MW1=probe1, MW2=probe2, MW3=probe3, AE=zlogapen, BV=zlogbv, stimulation) |>
-#   group_by(subj,block,stimulation) |>
-#   summarize(
-#     MW1=mean(as.numeric(MW1)), 
-#     MW2=mean(as.numeric(MW2)), 
-#     MW3=mean(as.numeric(MW3)),
-#     AE=mean(AE), 
-#     BV=mean(BV)) |>
-#   mutate(stimulation = factor(stimulation, levels=c("sham", "real"))) -> pfc_data_rdy
-
-
-
 
 
 ## Visualize regression models          =====
