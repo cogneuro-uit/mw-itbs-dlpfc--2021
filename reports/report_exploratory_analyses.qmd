@@ -6,11 +6,13 @@ format: docx
 ```{r, echo=F, warning=F, message=F, include=FALSE}
 library(tidyverse)
 library(gt)
+library(tidybayes)
 
 source("../lib/fmt_APA.R")
 source("../lib/mcmc.R")
 load("../data/export/paper_vars.RData")
 load("../data/export/bayesian_effect_of_music_meditaiton_on_mw-bv-ae.RData")
+
 mw_mus_med <- as.matrix(mod.mw.music_medi)
 bv_mus_med <- as.matrix(mod.bv.music_medi)
 ae_mus_med <- as.matrix(mod.ae.music_medi)
@@ -39,7 +41,7 @@ coef_hdi <- function(x){
   erat = fmt_APA_numbers(erat, .chr=T)
 
   sprintf(
-    "$M=%s, [%s, %s], p^{%s}=%s, \\text{ER}^{%s}=%s$", 
+    "$b=%s, [%s, %s], p^{%s}=%s, \\text{ER}^{%s}=%s$", 
     m, ll, ul, dir, pval, dir, erat)
 }
 
@@ -60,7 +62,7 @@ acc_mw <-
   ) |> as.matrix(x=_)
 ```
 \n
-B1-B0: `r coef_hdi( acc_mw[,"diffB1_B0"] )`   
+B1-B0: `r coef_hdi(acc_mw[,"diffB1_B0"] )`   
 
 \n
 B2-B1: `r coef_hdi(acc_mw[,"diffB2_B1"])`   
@@ -115,7 +117,6 @@ B3-B2: `r coef_hdi(acc_ae[,"diffB3_B2"])`
 
 
 
-
 # Reporting the effect of music and meditaiton
 
 ```{r, include=FALSE}
@@ -150,4 +151,110 @@ coef_hdi <- function(x){
 
 
 Our results did not find convincing evidence that musical or meditation experience influenced either MW, BV or AE. The findings revealed that neither musical (`r coef_hdi(mw_mus_med[,"b_music_year1"])`) or meditation (`r coef_hdi(mw_mus_med[,"b_meditation1"])`) experience influenced MW. Similarly, for BV, the results did not find convincing evidence that musical experience (`r coef_hdi(bv_mus_med[,"b_music_year1"])`) or meditation experience (`r coef_hdi(bv_mus_med[,"b_meditation1"])`) influenced BV. Lastly, for AE, the results did not indicate convincing evidence that musical experience (`r coef_hdi(ae_mus_med[,"b_music_year1"])`) or meditation experience (`r coef_hdi(ae_mus_med[,"b_meditation1"])`) influenced AE.  
+
+
+
+# Report AE+BV on MW
+
+```{r, echo=F, warning=F, message=F}
+load("../data/export/mod_mw_bv+ae.RData")
+
+# samples as matrix
+llm <- as.matrix(mod.mw_bv_ae)
+loL <- brms::loo(mod.mw_bv_ae)$estimates["looic",]
+
+coef_hdi <- function(x){
+  dir="+"
+  m <- mean(x)
+  ll <- hdi(x)[1]
+  ul <- hdi(x)[2]
+  erat <- sum(x>0)/sum(x<=0)
+  pval <- sum(x>0)/length(x)
+
+  if(m<0){
+    erat=1./erat
+    pval=1-pval
+    dir="-"
+  }
+  # pval=sprintf("%.2f",pval)
+  if(is.infinite(erat)){
+    erat=ifelse(erat<0, "-\\infty", "\\infty")
+  } else {
+    erat=fmt_APA_numbers(erat)
+  }
+  sprintf("$b=%s, [%s, %s], p^{%s}=%s, \\text{ER}^{%s}=%s$", 
+          fmt_APA_numbers(m), 
+          fmt_APA_numbers(ll), 
+          fmt_APA_numbers(ul), 
+          dir, 
+          fmt_APA_numbers(pval, .p=T),
+          dir, 
+          erat
+          )
+}
+```
+
+<!---    Describe big analysis that is placed in the supplemental material    --->
+
+We conducted an exploratory Bayesian analysis to determine the relationship between AE, BV and MW. We used an ordered-probit model, treating the ordinal MW variable as the outcome variable and including block and stimulation (and their interaction) together with time and the behavioural indices behavioural variability (BV) and approximate entropy (AE) and their interaction with stimulation respectively (see Table S8 for all coefficients). Additionally, we increased the chain length to 6000. This model did not reveal a significant effect of stimulation on BV's relationship to MW (`r coef_hdi(llm[,"b_stimulationreal:zlogbv"])`) nor an effect of stimulation on AE's relationship to MW (`r coef_hdi(llm[,"b_zlogapen:stimulationreal"])`). 
+
+
+
+
+```{r visualize the (absolute) prediction AE and BV have on MW, echo=FALSE}
+#| fig-width: 6
+#| fig-height: 3
+#| fig-dpi: 400
+as_tibble(llm) |>
+  mutate(
+    BV_sham = b_zlogbv,
+    BV_real = b_zlogbv + `b_stimulationreal:zlogbv`,
+    AE_sham = b_zlogapen,
+    AE_real = b_zlogapen + `b_zlogapen:stimulationreal`,
+  ) |>
+  select(matches("(AE_|BV_)")) |>
+  pivot_longer( everything() ) |>
+  separate_wider_delim(name, delim = "_", names = c("var", "stimulation")) |>
+  mutate(stimulation = factor( stimulation, levels = c("sham", "real"))) |>
+  ggplot(aes(stimulation, value, col = var )) +
+  geom_hline(yintercept=0, linetype = "dashed") + 
+  facet_wrap(~var) +
+  stat_summary(fun = mean, geom="line", aes(group=stimulation),
+               position=position_dodge(width=0.2)) +
+  stat_summary(fun.data = mean_hdci, geom="pointrange", position=position_dodge(width=0.2)) +
+    # mean_hdci might not be the same as hdi (but it seems to be the same...)
+  labs(y = "MW", x = "Block") + 
+  scale_y_continuous(breaks=seq(-1,1,.1)) +
+  theme_bw()
+
+#' AE's prediction changes over time (from being a significant negative predictor of MW to a non-significant?) 
+#' not sure if I want to argue for "more stability" thought, just a disconnect of the "dynamic". 
+
+```
+
+
+```{r visualize the (relative) prediction AE and BV have on MW, echo=FALSE}
+#| fig-width: 6
+#| fig-height: 3
+#| fig-dpi: 400
+as_tibble(llm) |>
+  mutate(
+    BV_real = `b_stimulationreal:zlogbv`,
+    AE_real = `b_zlogapen:stimulationreal`,
+  ) |>
+  select(matches("(AE_|BV_)")) |>
+  pivot_longer( everything() ) |>
+  separate_wider_delim(name, delim = "_", names = c("var", "stimulation")) |>
+  mutate(stimulation = factor( stimulation, levels = c("sham", "real"))) |>
+  ggplot(aes(stimulation, y = value, color = var )) +
+  geom_hline(yintercept=0, linetype = "dashed") + 
+  stat_summary(fun = mean, geom="line", aes(group=stimulation), 
+               position=position_dodge(width=0.2)) +
+  stat_summary(fun.data = mean_hdci, geom="pointrange", position=position_dodge(width=0.2)) +
+    # mean_hdci might not be the same as hdi (but it seems to be the same...)
+  labs(y = "MW", x = "Block") + 
+  scale_y_continuous(breaks=seq(-1,1,.1)) +
+  theme_bw()
+
+```
 
