@@ -518,9 +518,10 @@ accumen_tbl <-
     starts_with("d_") ~ md("*d*")
   )
 
-accumen_tbl
+# Do not use freq here. 
+# accumen_tbl
 # if(script_save_tables){
-#   gtsave(accumen_tbl, "tables/accumulating effect of the tms.docx")
+#   gtsave(accumen_tbl, "tables/accumulating effect of the repeated tms.docx")
 # }
 
 
