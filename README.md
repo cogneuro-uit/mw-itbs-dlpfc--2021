@@ -7,7 +7,7 @@ Preprint is available at [PsyArXiv](https://doi.org/10.31234/osf.io/fkx3w).
 If you want to use this data/analysis in a research publication, please cite [our paper](https://doi.org/10.31234/osf.io/fkx3w).
 
 ~~~{bibtex}
-@article{mw-rtms2024,
+@article{aasen-mw-itbs-dlpfc-2024,
   author={Steffen Rygg Aasen and Ragnhild Nicolaisen Drevland and Gábor Csifcsák and Matthias Mittner},
   title={Increasing Mind Wandering With Accelerated Intermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex},
   year=2024,
