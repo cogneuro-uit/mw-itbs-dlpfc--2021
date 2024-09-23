@@ -1,4 +1,4 @@
-# 2024-mw-itbs
+# mw-itbs-dlpfc-2024
 
 Data, analysis and experimental materials for our paper "Increasing Mind Wandering With Accelerated Intermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex".
 
