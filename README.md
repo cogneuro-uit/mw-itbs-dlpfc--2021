@@ -2,9 +2,9 @@
 
 Data, analysis and experimental materials for the paper "Increasing Mind Wandering With Accelerated Intermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex".
 
-~~Preprint is available at [PsyArXiv](https://doi.org/10.31234/osf.io/fkx3w).~~
-
 Published at [Neuopsychologia](https://doi.org/10.1016/j.neuropsychologia.2024.109008)
+
+~~Preprint is available at [PsyArXiv](https://doi.org/10.31234/osf.io/fkx3w).~~
 
 If you want to use this data/analysis in a research publication, please cite [our paper](https://doi.org/10.1016/j.neuropsychologia.2024.109008).
 
