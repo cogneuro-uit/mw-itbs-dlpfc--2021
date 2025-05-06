@@ -26,19 +26,16 @@ loL[["SMW"]] <- brms::loo(mod.pfc.smw)$estimates["looic",]
 loL[["BV"]] <- brms::loo(mod.pfc.bv)$estimates["looic",]
 loL[["AE"]] <- brms::loo(mod.pfc.ae)$estimates["looic",]
 
-coef_hdi <- function(x, dir="+"){
+coef_hdi <- function(x){
   m <- mean(x)
   ll <- hdi(x)[1]
   ul <- hdi(x)[2]
   #ll <- quantile(x, 0.025)
   #ul <- quantile(x, 0.975)
-  erat <- sum(x>0)/sum(x<=0)
-  pval <- sum(x>0)/length(x)
+  erat <- if_else( m>0, sum(x>0)/sum(x<=0), sum(x<0)/sum(x>=0) )
+  pval <- if_else( m>0, sum(x>0)/length(x), sum(x<0)/length(x) )
 
-  if(dir!="+"){
-    erat=1./erat
-    pval=1-pval
-  }
+  dir <- if_else(m>=0, "+", "-")
   # pval=sprintf("%.2f",pval)
   if(is.infinite(erat)){
     erat=ifelse(erat<0, "-\\infty", "\\infty")
@@ -83,7 +80,6 @@ coef_hdi <- function(x, dir="+"){
 # }
 ```
 
-
 ```{r include=F}
 # most of this is describe in the "statistical analysis" and is therefore left out of the text below.
 "
@@ -94,34 +90,27 @@ We also investigated the proportion of MW responses that were categorized by our
 "
 ```
 
-
-We used Hamiltonian Monte-Carlo algorithms implemented in the Stan software [@stan] to sample from 6 parallel chains with 3000 samples each, discarding the first 1500 samples of each chain. Convergence of all models was confirmed visually and all $\hat{R}$-values were confirmed to be lower than 1.05. We used the default priors implemented in the brms-package [@brms] which are non-informative for coefficients corresponding to fixed effects and weakly informative for the intercept and standard-deviation parameters  (Student-t prior with 3 df, mean 0 and SD 2.5). For each coefficient, we report its posterior mean $b$ and 95% highest-density interval (HDI). In addition, for directed effects, we report the probability of the effect to be positive ($p^{+}$) or negative ($p^{-}$) as well as the evidence ratio for a positive ($\text{ER}^{+}$) or negative effect ($\text{ER}^{-}$). The ER quantifies how much more likely the effect is to be in the expected compared to the opposite direction.
-
+We used Hamiltonian Monte-Carlo algorithms implemented in the Stan software [@stan] to sample from 6 parallel chains with 3000 samples each, discarding the first 1500 samples of each chain. Convergence of all models was confirmed visually and all $\hat{R}$-values were confirmed to be lower than 1.05. We used the default priors implemented in the brms-package [@brms] which are non-informative for coefficients corresponding to fixed effects and weakly informative for the intercept and standard-deviation parameters (Student-t prior with 3 df, mean 0 and SD 2.5). For each coefficient, we report its posterior mean $b$ and 95% highest-density interval (HDI). In addition, for directed effects, we report the probability of the effect to be positive ($p^{+}$) or negative ($p^{-}$) as well as the evidence ratio for a positive ($\text{ER}^{+}$) or negative effect ($\text{ER}^{-}$). The ER quantifies how much more likely the effect is to be in the expected compared to the opposite direction.
 
 ### Self-reported MW
 
+Results of the Bayesian ordered probit model for MW indicate that MW increased within blocks as a function of trial (`r coef_hdi(smw[,"b_scaleproberound"])`). Compared to baseline (B0), in the sham condition, MW was not changed in the first block (B0 to B1: `r coef_hdi(smw[,"b_blockB1"])`), but some evidence suggested that MW increased in the second block (B0 to B2: `r coef_hdi(smw[,"b_blockB2"])`), this increase return to baseline levels in the third block (B0 to B3: `r coef_hdi(smw[,"b_blockB3"])`). Compared to sham stimulation, some evidence suggested that real stimulation increased MW in the first block (stimulation $\times$ B1: `r coef_hdi(smw[,"b_stimulationreal:blockB1"])`), more evidence was found for an increase in the second block (stimulation $\times$ B2: `r coef_hdi(smw[,"b_stimulationreal:blockB2"])`), but only some evidence was found for an increase in the third block (stimulation $\times$ B3: `r coef_hdi(smw[,"b_stimulationreal:blockB3"])`).
 
-Results of the Bayesian ordered probit model for MW indicate that MW increased within blocks as a function of trial (`r coef_hdi(smw[,"b_scaleproberound"])`). Compared to baseline (B0), in the sham condition, MW  was not changed in the first block (B0 to B1: `r coef_hdi(smw[,"b_blockB1"])`), but some evidence suggested that MW increased in the second block (B0 to B2: `r coef_hdi(smw[,"b_blockB2"])`), this increase return to baseline levels in the third block (B0 to B3: `r coef_hdi(smw[,"b_blockB3"])`). Compared to sham stimulation, some evidence suggested that real stimulation increased MW in the first block (stimulation $\times$ B1: `r coef_hdi(smw[,"b_stimulationreal:blockB1"])`), more evidence was found for an increase in the second block (stimulation $\times$ B2: `r coef_hdi(smw[,"b_stimulationreal:blockB2"])`), but only some evidence was found for an increase in the third block (stimulation $\times$ B3: `r coef_hdi(smw[,"b_stimulationreal:blockB3"])`). 
+MB appeared to increase as a function of trial within each block (`r coef_hdi(smb[,"b_scaleproberound"])`). Compared to baseline, in the sham condition, MB appeared to be unchanged in the first block (B0 to B1: `r coef_hdi(smb[,"b_blockB1"])`), but some evidence was found for a reduction in the second block (B0 to B2: `r coef_hdi(smb[,"b_blockB2"], dir="-")`), but this reduction returned to baseline in the third block (B0 to B3: `r coef_hdi(smb[,"b_blockB3"], dir="-")`). Compared to the sham stimulation, real stimulation did not influence MB in the first block (stimulation $\times$ B1: `r coef_hdi(smb[,"b_stimulationreal:blockB1"])`), or the second block (stimulation $\times$ B2: `r coef_hdi(smb[,"b_stimulationreal:blockB2"])`), but some evidence suggested that MB was reduced in the third block (stimulation $\times$ B3: `r coef_hdi(smb[,"b_stimulationreal:blockB3"])`).
 
-
-
-MB appeared to increase as a function of trial within each block (`r coef_hdi(smb[,"b_scaleproberound"])`). Compared to baseline, in the sham condition, MB appeared to be unchanged in the first block (B0 to B1: `r coef_hdi(smb[,"b_blockB1"], dir="-")`), but some evidence was found for a reduction in the second block (B0 to B2: `r coef_hdi(smb[,"b_blockB2"], dir="-")`), but this reduction returned to baseline in the third block (B0 to B3: `r coef_hdi(smb[,"b_blockB3"], dir="-")`). Compared to the sham stimulation, real stimulation did not influence MB in the first block (stimulation $\times$ B1: `r coef_hdi(smb[,"b_stimulationreal:blockB1"], dir="-")`), or the second block (stimulation $\times$ B2: `r coef_hdi(smb[,"b_stimulationreal:blockB2"])`), but some evidence suggested that MB was reduced in the third block (stimulation $\times$ B3: `r coef_hdi(smb[,"b_stimulationreal:blockB3"], dir="-")`).
-
-Spontaneous MW (SMW) did not appear to change within block (`r coef_hdi(ssmw[,"b_scaleproberound"])`). Compared to baseline, in the sham stimulation, some evidence was found suggesting that SMW was increased in the first block (B1: `r coef_hdi(ssmw[,"b_blockB1"])`), and the second block (B2: `r coef_hdi(ssmw[,"b_blockB2"])`), yet more evidence for an increase was found in the third block (`r coef_hdi(ssmw[,"b_blockB3"])`). Compared to sham stimulation, real stimulation did not affect SMW in the first block (stimulation $\times$ B1: `r coef_hdi(ssmw[,"b_stimulationreal:blockB1"], dir="-")`), the second block (stimulation $\times$ B2: `r coef_hdi(ssmw[,"b_stimulationreal:blockB2"])`), or the third block (stimulation $\times$  B3 `r coef_hdi(ssmw[,"b_stimulationreal:blockB3"], dir="-")`).
-
+Spontaneous MW (SMW) did not appear to change within block (`r coef_hdi(ssmw[,"b_scaleproberound"])`). Compared to baseline, in the sham stimulation, some evidence was found suggesting that SMW was increased in the first block (B1: `r coef_hdi(ssmw[,"b_blockB1"])`), and the second block (B2: `r coef_hdi(ssmw[,"b_blockB2"])`), yet more evidence for an increase was found in the third block (`r coef_hdi(ssmw[,"b_blockB3"])`). Compared to sham stimulation, real stimulation did not affect SMW in the first block (stimulation $\times$ B1: `r coef_hdi(ssmw[,"b_stimulationreal:blockB1"])`), the second block (stimulation $\times$ B2: `r coef_hdi(ssmw[,"b_stimulationreal:blockB2"])`), or the third block (stimulation $\times$ B3 `r coef_hdi(ssmw[,"b_stimulationreal:blockB3"])`).
 
 ### Behavioural indices
 
-In terms of the performance indices (see Table 3), BV increased within each block as a function of trial (`r coef_hdi(sbv[,"b_scaleproberound"])`). Compared to baseline (B0), in the sham condition, BV did not appear to change in first block (B0 to B1: `r coef_hdi(sbv[,"b_blockB1"])`), but strong evidence was found for an increase in the second block (B0 to B2, `r coef_hdi(sbv[,"b_blockB2"])`), but returned to baseline levels in the last block (`r coef_hdi(sbv[,"b_blockB3"], dir="-")`). Compared to the sham stimulation, real stimulation did not influence BV in the first block (stimulation $\times$ B1: `r coef_hdi(sbv[,"b_stimulationreal:blockB1"], dir="-")`), but strong evidence was found for a decrease in the second block (stimulation $\times$ B2: `r coef_hdi(sbv[,"b_stimulationreal:blockB2"], dir="-")`), and this decrease returned to baseline levels in the third block (stimulation $\times$ B3: `r coef_hdi(sbv[,"b_stimulationreal:blockB3"], dir="-")`).
+In terms of the performance indices (see Table 3), BV increased within each block as a function of trial (`r coef_hdi(sbv[,"b_scaleproberound"])`). Compared to baseline (B0), in the sham condition, BV did not appear to change in first block (B0 to B1: `r coef_hdi(sbv[,"b_blockB1"])`), but strong evidence was found for an increase in the second block (B0 to B2, `r coef_hdi(sbv[,"b_blockB2"])`), but returned to baseline levels in the last block (`r coef_hdi(sbv[,"b_blockB3"])`). Compared to the sham stimulation, real stimulation did not influence BV in the first block (stimulation $\times$ B1: `r coef_hdi(sbv[,"b_stimulationreal:blockB1"])`), but strong evidence was found for a decrease in the second block (stimulation $\times$ B2: `r coef_hdi(sbv[,"b_stimulationreal:blockB2"])`), and this decrease returned to baseline levels in the third block (stimulation $\times$ B3: `r coef_hdi(sbv[,"b_stimulationreal:blockB3"])`).
 
-
-AE did not show a clear relationship with trial (`r coef_hdi(sae[,"b_scaleproberound"])`). Compared to baseline, in the sham stimulation, AE was reduced in the first block (B1: `r coef_hdi(sae[,"b_blockB1"], dir="-")`), the second block (B2: `r coef_hdi(sae[,"b_blockB2"], dir="-")`), and the third block (B3: `r coef_hdi(sae[,"b_blockB3"], dir="-")`). Compared to the sham stimulation, some evidence suggested that real stimulation increased AE in the first block (stimulation $\times$ B1: `r coef_hdi(sae[,"b_stimulationreal:blockB1"])`). but this increase returned to baseline levels in the second (stimulation $\times$ B2: `r coef_hdi(sae[,"b_stimulationreal:blockB2"])`), and third block (stimulation $\times$ B3: `r coef_hdi(sae[,"b_stimulationreal:blockB3"])`).
+AE did not show a clear relationship with trial (`r coef_hdi(sae[,"b_scaleproberound"])`). Compared to baseline, in the sham stimulation, AE was reduced in the first block (B1: `r coef_hdi(sae[,"b_blockB1"])`), the second block (B2: `r coef_hdi(sae[,"b_blockB2"])`), and the third block (B3: `r coef_hdi(sae[,"b_blockB3"])`). Compared to the sham stimulation, some evidence suggested that real stimulation increased AE in the first block (stimulation $\times$ B1: `r coef_hdi(sae[,"b_stimulationreal:blockB1"])`). but this increase returned to baseline levels in the second (stimulation $\times$ B2: `r coef_hdi(sae[,"b_stimulationreal:blockB2"])`), and third block (stimulation $\times$ B3: `r coef_hdi(sae[,"b_stimulationreal:blockB3"])`).
 
 ## Tables
 
 ### MW, MB & S-MW
 
-```{r echo=F}  
+```{r echo=F}
 # Split HDI ======  
 get_summary <- function(mod){
   X <- as_tibble(mod) |> select(starts_with("b_"), sd_subj__Intercept) |>
@@ -209,7 +198,6 @@ M |>
   )
 ```
 
-
 ### AE and BV
 
 ```{r, echo=F}
@@ -260,7 +248,6 @@ bind_cols(
   get_summary_behav(mod.pfc.ae)[,c("b","HDI", "pd")] |> rename(AE = b, AEhdi = HDI, AEpd=pd)) -> M2
 ```
 
-
 ```{r, echo=F, eval=T}
 M2 |>
   gt(rowname_col = "variable", groupname_col = "group") |>
@@ -297,7 +284,6 @@ M2 |>
 
 ```
 
-
 ```{r}
 sbv |> 
   as_tibble() |> 
@@ -314,10 +300,8 @@ sbv |>
   
 ```
 
-
 ```{r}
 smw
 sbv
 sae
 ```
-
