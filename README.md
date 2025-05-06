@@ -1,20 +1,22 @@
 # mw-itbs-dlpfc-2024
 
-Data, analysis and experimental materials for our paper "Increasing Mind Wandering With Accelerated Intermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex".
+Data, analysis and experimental materials for the paper "Increasing Mind Wandering With Accelerated Intermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex".
 
-Preprint is available at [PsyArXiv](https://doi.org/10.31234/osf.io/fkx3w).
+Published at [Neuopsychologia](https://doi.org/10.1016/j.neuropsychologia.2024.109008)
 
-If you want to use this data/analysis in a research publication, please cite [our paper](https://doi.org/10.31234/osf.io/fkx3w).
+~~Preprint is available at [PsyArXiv](https://doi.org/10.31234/osf.io/fkx3w).~~
+
+If you want to use this data/analysis in a research publication, please cite [our paper](https://doi.org/10.1016/j.neuropsychologia.2024.109008).
 
 ~~~{bibtex}
 @article{aasen-mw-itbs-dlpfc-2024,
   author={Steffen Rygg Aasen and Ragnhild Nicolaisen Drevland and Gábor Csifcsák and Matthias Mittner},
   title={Increasing Mind Wandering With Accelerated Intermittent Theta Burst Stimulation Over the Left Dorsolateral Prefrontal Cortex},
   year=2024,
-  journal={},
-  volume=,
-  number=,
-  doi=https://doi.org/10.31234/osf.io/fkx3w
+  journal={Neuropsychologia},
+  volume=204,
+  number=109008,
+  doi=https://doi.org/10.1016/j.neuropsychologia.2024.109008
 }
 ~~~
 
@@ -51,8 +53,6 @@ First, load the library (`library(ProjectTemplate)`) and then load the project b
 # ℹ 3,510 more rows
 # ℹ 8 more variables: region <chr>, stimulation <chr>, music_year <ord>, meditation <ord>, fatigue <ord>, snack <fct>, time <hms>, date <date>
 ~~~
-
-Relevant variables are coded as follows:
 
 ## Analyses
 
